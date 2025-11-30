@@ -228,37 +228,37 @@ def conduct_voting_preference_interview(
 
 
 if __name__ == "__main__":
-    # # Step 1: Perform profile search of Chile survey participants (profile metadata and posts)
-    # print(
-    #     "Step 1: Perform profile search of Chile survey participants (profile metadata and posts)."
-    # )
-    # perform_x_profile_metadata_search(
-    #     project_name=PROJECT_NAME,
-    #     execution_date=PIPELINE_EXECUTION_DATE,
-    #     input_file=LOCAL_PROFILE_METADATA_FILE,
-    #     output_file=PROFILE_METADATA_SEARCH_FILE,
-    #     local_file=LOCAL_PROFILE_METADATA_FILE,
-    # )
-    # perform_x_profile_search(
-    #     project_name=PROJECT_NAME,
-    #     execution_date=PIPELINE_EXECUTION_DATE,
-    #     input_file=LOCAL_PROFILE_METADATA_FILE,
-    #     output_file=PROFILE_SEARCH_FILE,
-    #     start_date=PROFILE_SEARCH_START_DATE,
-    #     end_date=PROFILE_SEARCH_END_DATE,
-    #     num_posts_per_profile=NUM_POSTS_PER_PROFILE,
-    #     local_file=LOCAL_PROFILE_POST_FILE,
-    # )
+    # Step 1: Perform profile search of Chile survey participants (profile metadata and posts)
+    print(
+        "Step 1: Perform profile search of Chile survey participants (profile metadata and posts)."
+    )
+    perform_x_profile_metadata_search(
+        project_name=PROJECT_NAME,
+        execution_date=PIPELINE_EXECUTION_DATE,
+        input_file=LOCAL_PROFILE_METADATA_FILE,
+        output_file=PROFILE_METADATA_SEARCH_FILE,
+        local_file=LOCAL_PROFILE_METADATA_FILE,
+    )
+    perform_x_profile_search(
+        project_name=PROJECT_NAME,
+        execution_date=PIPELINE_EXECUTION_DATE,
+        input_file=LOCAL_PROFILE_METADATA_FILE,
+        output_file=PROFILE_SEARCH_FILE,
+        start_date=PROFILE_SEARCH_START_DATE,
+        end_date=PROFILE_SEARCH_END_DATE,
+        num_posts_per_profile=NUM_POSTS_PER_PROFILE,
+        local_file=LOCAL_PROFILE_POST_FILE,
+    )
 
-    # # Step 2: Perform initial interview to idenitfy entity and geographic information
-    # print("Step 2: Perform initial interview to idenitfy entity and geographic information.")
-    # conduct_entity_geographic_interview(
-    #     project_name=PROJECT_NAME,
-    #     execution_date=PIPELINE_EXECUTION_DATE,
-    #     profile_metadata_file=PROFILE_METADATA_SEARCH_FILE,
-    #     post_file=PROFILE_SEARCH_FILE,
-    #     output_file=POST_ENTITY_GEOGRAPHIC_INTERVIEW_FILE,
-    # )
+    # Step 2: Perform initial interview to idenitfy entity and geographic information
+    print("Step 2: Perform initial interview to idenitfy entity and geographic information.")
+    conduct_entity_geographic_interview(
+        project_name=PROJECT_NAME,
+        execution_date=PIPELINE_EXECUTION_DATE,
+        profile_metadata_file=PROFILE_METADATA_SEARCH_FILE,
+        post_file=PROFILE_SEARCH_FILE,
+        output_file=POST_ENTITY_GEOGRAPHIC_INTERVIEW_FILE,
+    )
 
     # Step 3: Perform digital election polling of Chile survey participants
     print("Step 3: Perform digital election polling of Chile survey participants.")
