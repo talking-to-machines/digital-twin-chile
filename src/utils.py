@@ -1,18 +1,25 @@
 import requests, re, json, time, ast, os, warnings
 import pandas as pd
-pd.set_option('future.no_silent_downcasting', True)
+
+pd.set_option("future.no_silent_downcasting", True)
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, timezone
 from tqdm import tqdm
+from tqdm.auto import tqdm as tqdm_auto
 
 tqdm.pandas()
 
 from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor
 from prompts.prompt_template import x_tweet_prompt_template
 from config.base_config import (
     OPENAI_API_KEY,
     X_API_USERNAME,
     X_API_PASSWORD,
+    NUM_PARALLEL_PROCESSES,
+)
+from config.digital_twin_config import (
+    WEB_SEARCH_COUNTRY,
 )
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -20,30 +27,53 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 def construct_system_prompt(
-    row: pd.Series, system_prompt_template: str, interview_type: str
+    row: pd.Series,
+    system_prompt_template: str,
+    interview_type: str,
+    include_profile_info: bool = True,
 ) -> str:
-    if interview_type.startswith("x"):
-        profile_args = {
-            "profile_picture": row.get("profilePicture", ""),
-            "name": row.get("name", ""),
-            "account_id": row.get("account_id", ""),
-            "location": row.get("location", ""),
-            "description": row.get("description", ""),
-            "url": row.get("url", ""),
-            "created_at": row.get("createdAt", ""),
-            "is_verified": row.get("isVerified", ""),
-            "is_blue_verified": row.get("isBlueVerified", ""),
-            "protected": row.get("protected", ""),
-            "followers": row.get("followers", ""),
-            "following": row.get("following", ""),
-            "statuses_count": row.get("statusesCount", ""),
-            "favourites_count": row.get("favouritesCount", ""),
-            "media_count": row.get("mediaCount", ""),
-            "tweets": row.get("posts_combined", ""),
-        }
+    if include_profile_info:
+        if interview_type.startswith("x"):
+            profile_args = {
+                "profile_picture": row.get("profilePicture", ""),
+                "name": row.get("name", ""),
+                "account_id": row.get("account_id", ""),
+                "location": row.get("location", ""),
+                "description": row.get("description", ""),
+                "url": row.get("url", ""),
+                "created_at": row.get("createdAt", ""),
+                "is_verified": row.get("isVerified", ""),
+                "is_blue_verified": row.get("isBlueVerified", ""),
+                "protected": row.get("protected", ""),
+                "followers": row.get("followers", ""),
+                "following": row.get("following", ""),
+                "statuses_count": row.get("statusesCount", ""),
+                "favourites_count": row.get("favouritesCount", ""),
+                "media_count": row.get("mediaCount", ""),
+                "tweets": row.get("posts_combined", ""),
+            }
 
+        else:
+            profile_args = {}
     else:
-        profile_args = {}
+        profile_args = {
+            "profile_picture": "",
+            "name": "",
+            "account_id": "",
+            "location": "",
+            "description": "",
+            "url": "",
+            "created_at": "",
+            "is_verified": "",
+            "is_blue_verified": "",
+            "protected": "",
+            "followers": "",
+            "following": "",
+            "statuses_count": "",
+            "favourites_count": "",
+            "media_count": "",
+            "tweets": "",
+        }
 
     return system_prompt_template.format(**profile_args)
 
@@ -432,14 +462,21 @@ def batch_query(
                 try:
                     query_response = ""
                     for idx in range(len(result["response"]["body"]["output"])):
-                        if result["response"]["body"]["output"][idx].get("content", "") == "":
+                        if (
+                            result["response"]["body"]["output"][idx].get("content", "")
+                            == ""
+                        ):
                             continue
                         else:
-                            query_response = result["response"]["body"]["output"][idx]['content'][0]['text']
+                            query_response = result["response"]["body"]["output"][idx][
+                                "content"
+                            ][0]["text"]
                             break
 
                     if query_response == "":
-                        warnings.warn(f"No query response found in Custom ID: {result['custom_id']}. Returning empty response.")
+                        warnings.warn(
+                            f"No query response found in Custom ID: {result['custom_id']}. Returning empty response."
+                        )
                     response_list.append(
                         {
                             "custom_id": f'{result["custom_id"]}',
@@ -448,7 +485,9 @@ def batch_query(
                     )
 
                 except Exception as e:
-                    warnings.warn(f"No query response found in Custom ID: {result["custom_id"]}. Returning empty response.")
+                    warnings.warn(
+                        f"No query response found in Custom ID: {result["custom_id"]}. Returning empty response."
+                    )
                     response_list.append(
                         {
                             "custom_id": f'{result["custom_id"]}',
@@ -602,6 +641,9 @@ def perform_profile_interview(
     interview_type: str,
     history_field: str = None,
     vector_store_ids: list = [],
+    include_profile_info: bool = True,
+    use_row_query: bool = False,
+    enable_web_search: bool = False,
 ) -> None:
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -618,7 +660,8 @@ def perform_profile_interview(
         )
     )
     post_metadata = pd.read_csv(
-        os.path.join(base_dir, "../data", project_name, execution_date, post_file)
+        os.path.join(base_dir, "../data", project_name, execution_date, post_file),
+        on_bad_lines="skip",
     )
     if "warning_code" in post_metadata.columns:
         post_metadata = post_metadata[
@@ -646,7 +689,7 @@ def perform_profile_interview(
     if system_prompt_template:
         profile_metadata[f"{interview_type}_system_prompt"] = profile_metadata.apply(
             construct_system_prompt,
-            args=(system_prompt_template, interview_type),
+            args=(system_prompt_template, interview_type, include_profile_info),
             axis=1,
         )
     profile_metadata[f"{interview_type}_user_prompt"] = profile_metadata.apply(
@@ -666,42 +709,172 @@ def perform_profile_interview(
         exist_ok=True,
     )
 
-    # Perform batch query for survey questions
-    create_batch_file(
-        profile_metadata,
-        project_name=project_name,
-        execution_date=execution_date,
-        gpt_model=gpt_model,
-        system_prompt_field=f"{interview_type}_system_prompt",
-        user_prompt_field=f"{interview_type}_user_prompt",
-        history_field=history_field,
-        batch_file_name="batch_input.jsonl",
-        vector_store_ids=vector_store_ids,
-    )
+    if (
+        use_row_query or enable_web_search
+    ):  # When performing row-wise queries or enabling web search
+        profile_metadata_with_responses = profile_metadata.copy()
+        row_query_args = [
+            f"{interview_type}_system_prompt",
+            f"{interview_type}_user_prompt",
+            history_field,
+            gpt_model,
+            enable_web_search,
+            vector_store_ids,
+        ]
 
-    llm_responses = batch_query(
-        project_name=project_name,
-        execution_date=execution_date,
-        batch_input_file_dir="batch_input.jsonl",
-        batch_output_file_dir="batch_output.jsonl",
-        vector_store_ids=vector_store_ids,
-    )
-    llm_responses.rename(columns={"query_response": llm_response_field}, inplace=True)
+        # Choose how many parallel calls you want (tune for your rate limits)
+        max_workers = NUM_PARALLEL_PROCESSES
 
-    # Merge LLM response with original dataset
-    profile_metadata["custom_id"] = profile_metadata["custom_id"].astype("int64")
-    llm_responses["custom_id"] = llm_responses["custom_id"].astype("int64")
-    profile_metadata_with_responses = pd.merge(
-        left=profile_metadata,
-        right=llm_responses[["custom_id", llm_response_field]],
-        on="custom_id",
-    )
+        # Prepare rows in order so results line up with the DataFrame
+        rows = [row for _, row in profile_metadata.iterrows()]
+
+        def run_row_query(row):
+            # row_query(row, args=(...)) matches your previous progress_apply usage
+            return row_query(
+                row,
+                args=(row_query_args,),
+            )
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(
+                tqdm_auto(executor.map(run_row_query, rows), total=len(rows))
+            )
+
+        # Assign results back to the DataFrame in the same order
+        profile_metadata_with_responses[llm_response_field] = results
+
+    else:  # Perform batch queries to save cost
+        # Perform batch query for survey questions
+        create_batch_file(
+            profile_metadata,
+            project_name=project_name,
+            execution_date=execution_date,
+            gpt_model=gpt_model,
+            system_prompt_field=f"{interview_type}_system_prompt",
+            user_prompt_field=f"{interview_type}_user_prompt",
+            history_field=history_field,
+            batch_file_name="batch_input.jsonl",
+            vector_store_ids=vector_store_ids,
+        )
+
+        llm_responses = batch_query(
+            project_name=project_name,
+            execution_date=execution_date,
+            batch_input_file_dir="batch_input.jsonl",
+            batch_output_file_dir="batch_output.jsonl",
+            vector_store_ids=vector_store_ids,
+        )
+        llm_responses.rename(
+            columns={"query_response": llm_response_field}, inplace=True
+        )
+
+        # Merge LLM response with original dataset
+        profile_metadata["custom_id"] = profile_metadata["custom_id"].astype("int64")
+        llm_responses["custom_id"] = llm_responses["custom_id"].astype("int64")
+        profile_metadata_with_responses = pd.merge(
+            left=profile_metadata,
+            right=llm_responses[["custom_id", llm_response_field]],
+            on="custom_id",
+        )
 
     # Save profile metadata after analysis into CSV file
     profile_metadata_with_responses.to_csv(
         os.path.join(base_dir, "../data", project_name, execution_date, output_file),
         index=False,
     )
+
+
+def row_query(row: pd.Series, args: list) -> str:
+    system_prompt = row[args[0][0]]
+    user_prompt = row[args[0][1]]
+    history_field = args[0][2]
+    gpt_model = args[0][3]
+    enable_web_search = args[0][4]
+    vector_store_ids = args[0][5]
+
+    # Skip if system_prompt/user_prompt is empty or NaN (depending on your logic)
+    if not isinstance(system_prompt, str) or not isinstance(user_prompt, str):
+        return ""
+
+    query_parameters = {
+        "model": gpt_model,
+    }
+
+    if history_field and history_field in row.index:
+        history = row[history_field]
+        if isinstance(history, str):
+            try:
+                history = json.loads(history)
+            except Exception:
+                history = []
+        if isinstance(history, list) and history:
+            input = []
+            # messages.append({"role": "system", "content": system_prompt})
+            for m in history:
+                r, c = m.get("role", "user"), m.get("content", "")
+                input.append({"role": r, "content": c})
+
+            if system_prompt and system_prompt in row.index:
+                input.append({"role": "system", "content": row[system_prompt]})
+
+            input.append({"role": "user", "content": row[user_prompt]})
+        else:
+            input = [
+                {"role": "system", "content": row[system_prompt]},
+                {"role": "user", "content": row[user_prompt]},
+            ]
+    else:
+        input = [
+            {"role": "system", "content": row[system_prompt]},
+            {"role": "user", "content": row[user_prompt]},
+        ]
+    query_parameters["input"] = input
+
+    if vector_store_ids and enable_web_search:
+        query_parameters["tools"] = [
+            {
+                "type": "web_search",
+                "search_context_size": "medium",
+                "user_location": {"type": "approximate", "country": WEB_SEARCH_COUNTRY},
+            },
+            {
+                "type": "file_search",
+                "vector_store_ids": vector_store_ids,
+            },
+        ]
+        query_parameters["tool_choice"] = "required"
+
+    elif vector_store_ids:
+        query_parameters["tools"] = [
+            {
+                "type": "file_search",
+                "vector_store_ids": vector_store_ids,
+            }
+        ]
+        query_parameters["tool_choice"] = "required"
+
+    elif enable_web_search:
+        query_parameters["tools"] = [
+            {
+                "type": "web_search",
+                "search_context_size": "medium",
+                "user_location": {"type": "approximate", "country": WEB_SEARCH_COUNTRY},
+            }
+        ]
+        query_parameters["tool_choice"] = "required"
+
+    else:
+        query_parameters["temperature"] = 0
+
+    # Make a chat completion request
+    try:
+        response = openai_client.responses.create(**query_parameters)
+        return response.output_text
+
+    except Exception as e:
+        # Handle errors (rate limits, etc.)
+        print(f"Error processing row: {e}")
+        return "Error or Timeout"
 
 
 def perform_x_profile_search(
@@ -713,6 +886,7 @@ def perform_x_profile_search(
     end_date: str,
     num_posts_per_profile: int,
     local_file: str = None,
+    historical_post_file: str = None,
 ) -> pd.DataFrame:
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -731,16 +905,50 @@ def perform_x_profile_search(
     if local_file is None:  # Perform API search
         response_list = []
         for profile in tqdm(profile_list):
-            response = requests.get(
-                "https://abundance.it.com/get_tweets",
-                params={
-                    "user": profile,
-                    "max_tweets_per_user": num_posts_per_profile,
-                    "cut_off_time": f"{start_date}T00:00:00",  # YYYY-MM-DDTHH:MM:SS
-                },
-                auth=HTTPBasicAuth(X_API_USERNAME, X_API_PASSWORD),
-            )
-            response_list += response.json()[0]
+            attempt = 0
+
+            while attempt < MAX_RETRIES:
+                attempt += 1
+                try:
+                    response = requests.get(
+                        "https://abundance.it.com/get_tweets",
+                        params={
+                            "user": profile,
+                            "max_tweets_per_user": num_posts_per_profile,
+                            "cut_off_time": f"{start_date}T00:00:00",  # YYYY-MM-DDTHH:MM:SS
+                        },
+                        auth=HTTPBasicAuth(X_API_USERNAME, X_API_PASSWORD),
+                    )
+                    response_list += response.json()[0]
+                    time.sleep(3)
+                    break
+
+                except requests.exceptions.JSONDecodeError:
+                    warnings.warn(
+                        f"JSONDecodeError for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.ReadTimeout:
+                    warnings.warn(
+                        f"ReadTimeout for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.ConnectTimeout:
+                    warnings.warn(
+                        f"ConnectTimeout for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.HTTPError as e:
+                    warnings.warn(
+                        f"HTTP error for profile {profile}: {e}. Skipping profile."
+                    )
+                    break
+                except requests.exceptions.RequestException as e:
+                    warnings.warn(
+                        f"RequestException for profile {profile}: {e}. Retrying (attempt {attempt}/{MAX_RETRIES})..."
+                    )
+
+            else:
+                warnings.warn(
+                    f"Failed to fetch info for profile {profile} after {MAX_RETRIES} attempts. Skipping."
+                )
 
         profile_search_results = pd.DataFrame([r for r in response_list if r])
         profile_search_results["account_id"] = profile_search_results["author"].apply(
@@ -765,9 +973,7 @@ def perform_x_profile_search(
     else:  # Perform local search
         local_profile_search = pd.read_csv(local_file)
         local_profile_search["create_time_processed"] = pd.to_datetime(
-            local_profile_search["createdAt"],
-            format="%a %b %d %H:%M:%S %z %Y",
-            utc=True,
+            local_profile_search["createdAt"], utc=True
         )
         profile_search_results = pd.DataFrame()
 
@@ -801,6 +1007,21 @@ def perform_x_profile_search(
         index=False,
     )
 
+    if historical_post_file:
+        historical_post_file_path = os.path.join(
+            base_dir, "../data", project_name, execution_date, historical_post_file
+        )
+        historical_posts = pd.read_csv(historical_post_file_path, on_bad_lines="skip")
+        historical_posts = (
+            pd.concat(
+                [historical_posts, profile_search_results],
+                ignore_index=True,
+            )
+            .drop_duplicates(subset="id", keep="last")
+            .reset_index(drop=True)
+        )
+        historical_posts.to_csv(historical_post_file_path, index=False)
+
     return profile_search_results
 
 
@@ -832,14 +1053,48 @@ def perform_x_profile_metadata_search(
         # Perform profile metadata search
         response_list = []
         for profile in tqdm(profile_list):
-            response = requests.get(
-                "https://abundance.it.com/get_user_info",
-                params={
-                    "user": profile,
-                },
-                auth=HTTPBasicAuth(X_API_USERNAME, X_API_PASSWORD),
-            )
-            response_list += response.json()
+            attempt = 0
+
+            while attempt < MAX_RETRIES:
+                attempt += 1
+                try:
+                    response = requests.get(
+                        "https://abundance.it.com/get_user_info",
+                        params={
+                            "user": profile,
+                        },
+                        auth=HTTPBasicAuth(X_API_USERNAME, X_API_PASSWORD),
+                    )
+                    response_list += response.json()
+                    time.sleep(3)
+                    break
+
+                except requests.exceptions.JSONDecodeError:
+                    warnings.warn(
+                        f"JSONDecodeError for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.ReadTimeout:
+                    warnings.warn(
+                        f"ReadTimeout for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.ConnectTimeout:
+                    warnings.warn(
+                        f"ConnectTimeout for profile {profile} (attempt {attempt}/{MAX_RETRIES}). Retrying..."
+                    )
+                except requests.exceptions.HTTPError as e:
+                    warnings.warn(
+                        f"HTTP error for profile {profile}: {e}. Skipping profile."
+                    )
+                    break
+                except requests.exceptions.RequestException as e:
+                    warnings.warn(
+                        f"RequestException for profile {profile}: {e}. Retrying (attempt {attempt}/{MAX_RETRIES})..."
+                    )
+
+            else:
+                warnings.warn(
+                    f"Failed to fetch info for profile {profile} after {MAX_RETRIES} attempts. Skipping."
+                )
 
         profile_metadata = pd.DataFrame([r for r in response_list if r])
         profile_metadata.rename(columns={"userName": "account_id"}, inplace=True)

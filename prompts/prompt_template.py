@@ -117,7 +117,6 @@ REG13) DEL BIOBIO
 REG14) DEL LIBERTADOR GENERAL BERNARDO O'HIGGINS
 REG15) DEL MAULE
 REG16) METROPOLITANA DE SANTIAGO
-REG17) NA
 
 COMUNA: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la comuna en la que vive el usuario de la siguiente lista. De lo contrario, responda con "NA".
 COMU1) ALGARROBO
@@ -465,10 +464,9 @@ COMU342) YUMBEL
 COMU343) YUNGAY
 COMU344) ZAPALLAR
 COMU345) ÑIQUEN
-COMU346) ÑUÑOA
-COMU347) NA"""
+COMU346) ÑUÑOA"""
 
-x_digital_twin_voting_preference_user_prompt = """Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
+x_digital_twin_voting_preference_wo_voting_results_user_prompt = """Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
 **question: EDAD**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
@@ -552,37 +550,37 @@ x_digital_twin_voting_preference_user_prompt = """Formato obligatorio: Encierre 
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: (INDV) VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PARLAMENTARIAS LEGISLATIVAS DE 2021**
+**question: (INDV) VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: (INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PARLAMENTARIAS DE 2021**
+**question: (INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2021**
+**question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2021**
+**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2025**
+**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2025**
+**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
@@ -643,42 +641,6 @@ x_digital_twin_voting_preference_user_prompt = """Formato obligatorio: Encierre 
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
 **question: PREFERENCIAS DE VOTACIÓN ACTUALES**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PARLAMENTARIAS DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PARLAMENTARIAS LEGISLATIVAS DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2025**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
-**question: PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
@@ -750,7 +712,7 @@ MAR3) Soltero(a) – nunca casado(a), incluyendo a quienes están legalmente sep
 MAR4) Divorciado(a) – legalmente divorciado(a) y no vuelto(a) a casar
 MAR5) Viudo(a) – el cónyuge ha fallecido y no vuelto(a) a casar
 
-HIGHEST EDUCATIONAL QUALIFICATION:
+CALIFICACIÓN EDUCATIVA MÁS ALTA:
 ¿Cuál es su mayor nivel educacional?
 EDU1) Sala Cuna o Jardín Infantil
 EDU2) PreKinder
@@ -791,18 +753,22 @@ IoPoR9) 9
 IoPoR10) 10
 
 PARTIDO POLÍTICO:
-Generalmente, ¿con qué partido político simpatiza? 
-PP1) Partido Socialista  
-PP2) Partido por la Democracia   
-PP3) Partido Demócrata Cristiano  
-PP4) Renovación Nacional 
-PP5) Unión Demócrata Independiente  
-PP6) Partido Humanista  
-PP7) Partido Comunista 
-PP8) Partido Radical Socialdemócrata  
-PP9) Revolución Democrática  
-PP10) Evolución Política (Evopoli)  
-PP11) Amplitud  
+Generalmente, ¿con qué partido político simpatiza?
+PP1) Partido Republicano
+PP2) Renovación Nacional (RN)
+PP3) Frente Amplio
+PP4) Partido Comunista (PC)
+PP5) Partido Socialista (PS)
+PP6) Democracia Cristiana (DC)
+PP7) Unión Demócrata Independiente (UDI)
+PP8) Partido Por la Democracia (PPD)
+PP9) Partido de la Gente (PDG)
+PP10) Partido Liberal
+PP11) Partido Demócratas Chile
+PP12) Evolución Política (EVOPOLI)
+PP13) Partido Social Cristiano
+PP14) Partido Radical (PR)
+PP15) Frente Regionalista Verde Social (FRVS)
 
 AFINIDAD CON PARTIDO POLÍTICO:
 En una escala de 1 a 7, donde 1 significa que no siente ninguna simpatía y 7 significa que siente mucha simpatía por el partido político escogido, ¿qué grado de afinidad siente por el partido que eligió?
@@ -836,39 +802,34 @@ TRUS3) Aproximadamente la mitad del tiempo confío en otras personas
 TRUS4) Algunas veces confío en otras personas
 TRUS5) Nunca confío en otras personas
 
-(INDV) VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PARLAMENTARIAS LEGISLATIVAS DE 2021:
-Tpaindv1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones parlamentarias de 2021.
-Tpaindv2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones parlamentarias de 2021.
-Tpaindv3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones parlamentarias de 2021.
-Tpaindv4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones parlamentarias de 2021.
-Tpaindv5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones parlamentarias de 2021.
-Tpaindv6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones parlamentarias de 2021.
-Tpaindv7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones parlamentarias de 2021.
+(INDV) VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
+Tpaindv1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones  legislativas de 2021.
+Tpaindv2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones legislativas de 2021.
+Tpaindv3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones legislativas de 2021.
+Tpaindv4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones  legislativas de 2021.
+Tpaindv5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones legislativas de 2021.
+Tpaindv6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones legislativas de 2021.
+Tpaindv7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones legislativas de 2021.
 
-(INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PARLAMENTARIAS DE 2021:
-Vpaindv1) no votó en las elecciones parlamentarias de 2021
-Vpaindv2) votó por un candidato de Convergencia Social (CS) en las elecciones parlamentarias de 2021
-Vpaindv3) votó por un candidato de Revolución Democrática (RD) en las elecciones parlamentarias de 2021
-Vpaindv4) votó por un candidato del Partido Comunista (PC) en las elecciones parlamentarias de 2021.
-Vpaindv5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones parlamentarias de 2021.
-Vpandv6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones parlamentarias de 2021.
-Vpandv7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones parlamentarias de 2021
-Vpandv8) votó por un candidato de Renovación Nacional (RN) en las elecciones parlamentarias de 2021
-Vpandv9) votó por un candidato del Partido Republicano (PLR) en las elecciones parlamentarias de 2021
-Vpandv10) votó por un candidato del Partido de la Gente (PDG) en las elecciones parlamentarias de 2021
-Vpandv11) votó por un candidato del Partido Progresista (PRO) en las elecciones parlamentarias de 2021
-Vpandv12) votó por un candidato independiente en las elecciones parlamentarias de 2021
+(INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
+Vpaindv1) no votó en las elecciones  legislativas de 2021
+Vpaindv2) votó por un candidato de Convergencia Social (CS) en las elecciones legislativas de 2021
+Vpaindv3) votó por un candidato de Revolución Democrática (RD) en las elecciones legislativas de 2021
+Vpaindv4) votó por un candidato del Partido Comunista (PC) en las elecciones legislativas de 2021.
+Vpaindv5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones  legislativas de 2021.
+Vpandv6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones legislativas de 2021.
+Vpandv7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones legislativas de 2021
+Vpandv8) votó por un candidato de Renovación Nacional (RN) en las elecciones legislativas de 2021
+Vpandv9) votó por un candidato del Partido Republicano (PLR) en las elecciones legislativas de 2021
+Vpandv10) votó por un candidato del Partido de la Gente (PDG) en las elecciones legislativas de 2021
+Vpandv11) votó por un candidato del Partido Progresista (PRO) en las elecciones legislativas de 2021
+Vpandv12) votó por un candidato independiente en las elecciones legislativas de 2021
 
-VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2021:
-Thpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados
-Thpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados
-Thpa3) Es improbable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados
-Thpa4) 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados.
-Thpa5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados.
-Thpa6) Es muy probable que esta persona haya votado – Probabilidad: 0.85 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados.
-Thpa7) Se tiene certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones parlamentarias de 2021 para la Cámara de Diputadas y Diputados.
+VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
+Thpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones presidenciales de 2021 Thpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones presidenciales de 2021 
+Thpa3) Es improbable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones presidenciales de 2021 Thpa4) 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones presidenciales de 2021 Thpa5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones presidenciales de 2021 Thpa6) Es muy probable que esta persona haya votado – Probabilidad: 0.85 – en las elecciones presidenciales de 2021 Thpa7) Se tiene certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones presidenciales de 2021 
 
-VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2021: 
+VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021: 
 Vpa1) no votó en las elecciones presidenciales de 2021
 Vpa2) votó por Gabriel Boric, candidato de Convergencia Social, en las elecciones presidenciales de 2021
 Vpa3) votó por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2021
@@ -878,7 +839,7 @@ Vpa6) votó por Eduardo Artés, candidato de la Unión Patriótica, en las elecc
 Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en las elecciones presidenciales de 2021
 Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021
 
-(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2025:
+(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Tcuindv1) No hay posibilidad de que esta persona vaya a votar – Probabilidad: 0 – en las elecciones presidenciales de 2025
 Tcuindv2) Es muy improbable que esta persona vaya a votar – Probabilidad: 0,15 – en las elecciones presidenciales de 2025
 Tcuindv3) Es improbable que esta persona vaya a votar – Probabilidad: 0,3 – en las elecciones presidenciales de 2025
@@ -887,7 +848,7 @@ Tcuindv5) Probable que esta persona vaya a votar – Probabilidad: 0,7 – en la
 Tcuindv6) Es muy probable que esta persona vaya a votar – Probabilidad: 0,85 – en las elecciones presidenciales de 2025
 Tcuindv7) Hay certeza de que esta persona irá a votar – Probabilidad: 1 – en las elecciones presidenciales de 2025
 
-(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2025:
+(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Vcuindv1) no votaría en las elecciones presidenciales de 2025
 Vcuindv2) votaría por Jeannette Jara, la candidata del Partido Comunista (PC), en las elecciones presidenciales de 2025
 Vcuindv3) votaría por José Antonio Kast, el candidato del Partido Republicano (Republicano), en las elecciones presidenciales de 2025
@@ -968,8 +929,8 @@ Moi07) Educación
 Moi08) Salud
 Moi09) Desigualdad de ingresos
 
-PREFERENCIAS DE VOTACIÓN ACTUALES: 
-OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT:
+PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT:
+OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT:
 Vcu1) no votaría en las elecciones presidenciales de 2025
 Vcu2) votaría por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2025
 Vcu3) votaría por Jeannette Jara, candidata del Partido Comunista, en las elecciones presidenciales de 2025
@@ -977,10 +938,9 @@ Vcu4) votaría por Evelyn Matthei, candidata de la Unión Demócrata Independien
 Vcu5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertario, en las elecciones presidenciales de 2025
 Vcu6) votaría por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2025
 Vcu7) votaría por Marco Enríquez-Ominami, candidato independiente, en las elecciones presidenciales de 2025
-Vcu8) votaría por Eduardo Artés, candidato independiente, en las elecciones presidenciales de 2025
+Vcu8) votaría por Eduardo Artés, candidato independiente, en las elecciones presidenciales de 2025"""
 
-
-Los resultados de las Elecciones Presidenciales de Chile de noviembre de 2021 se reportan a nivel de COMUNA y REGIÓN (número de votos por candidato). El conjunto de datos está disponible en:
+x_digital_twin_voting_preference_with_voting_results_user_prompt = """Los resultados de las Elecciones Presidenciales de Chile de noviembre de 2021 se reportan a nivel de COMUNA y REGIÓN (número de votos por candidato). El conjunto de datos está disponible en:
 https://talkingtomachines.org/votacion-comunal-in-chile/
 Usted ya respondió en un paso anterior la pregunta relacionada con la COMUNA y REGIÓN – “REGIÓN y COMUNA”.
 A partir de este punto, siga estrictamente estas reglas:
@@ -993,7 +953,47 @@ A partir de este punto, siga estrictamente estas reglas:
 * Nunca usar datos de otra comuna o región.
 * Nunca inferir ni aproximar resultados.
 
-VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2021:
+Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
+**question: VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+**question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+**question: PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+**question: PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
+¡USTED DEBE DAR UNA RESPUESTA PARA CADA TÍTULO!  
+A continuación, se presenta la lista de categorías a las que este usuario puede pertenecer:
+
+VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
 Tpa1) No hay posibilidad de que esta persona haya votado - Probabilidad: 0 - en las elecciones presidenciales de 2021 en {municipality}
 Tpa2) Es muy improbable que esta persona haya votado - Probabilidad: 0.15 - en las elecciones presidenciales de 2021 en {municipality}
 Tpa3) Es poco probable que esta persona haya votado - Probabilidad: 0,3 - en las elecciones presidenciales de 2021 en {municipality}.
@@ -1002,7 +1002,7 @@ Tpa5) Probabilidad de que esta persona haya votado: 0,7 en las elecciones presid
 Tpa6) Es muy probable que esta persona haya votado - Probabilidad: 0,85 - en las elecciones presidenciales de 2021 en {municipality}
 Tpa7) Se tiene la certeza de que esta persona ha votado - Probabilidad: 1 -  en las elecciones presidenciales de 2021 en {municipality}
 
-VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2021: 
+VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021: 
 Vpa1) no votó en las elecciones presidenciales de 2021 en {municipality}
 Vpa2) votó por Gabriel Boric, candidato de Convergencia Social, en las elecciones presidenciales de 2021 en {municipality}
 Vpa3) votó por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2021 en {municipality}
@@ -1012,30 +1012,30 @@ Vpa6) votó por Eduardo Artés, candidato de la Unión Patriótica, en las elecc
 Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en las elecciones presidenciales de 2021 en {municipality}
 Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021 en {municipality}
 
-VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PARLAMENTARIAS DE 2021:
-Tpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones parlamentarias de 2021 en {municipality}.
+VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021:
+Tpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones legislativas de 2021 en {municipality}.
+Tpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones legislativas de 2021 en {municipality}.
+Tpa3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones legislativas de 2021 en {municipality}.
+Tpa4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones legislativas de 2021 en {municipality}.
 Tpa5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones parlamentarias de 2021 en {municipality}.
+Tpa6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones legislativas de 2021 en {municipality}.
+Tpa7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones legislativas de 2021 en {municipality}.
 
-VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PARLAMENTARIAS LEGISLATIVAS DE 2021:
+VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
 Vpa1) no votó en las elecciones legislativas de 2021 en {municipality}
-Vpa2) votó por un candidato de Convergencia Social (CS) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa3) votó por un candidato de Revolución Democrática (RD) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa4) votó por un candidato del Partido Comunista (PC) en las elecciones parlamentarias de 2021 en {municipality}.
-Vpa5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones parlamentarias de 2021 en {municipality}.
-Vpa6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones parlamentarias de 2021 en {municipality}.
-Vpa7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa8) votó por un candidato de Renovación Nacional (RN) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa9) votó por un candidato del Partido Republicano (PLR) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa10) votó por un candidato del Partido de la Gente (PDG) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa11) votó por un candidato del Partido Progresista (PRO) en las elecciones parlamentarias de 2021 en {municipality}
-Vpa12) votó por un candidato independiente en las elecciones parlamentarias de 2021 en {municipality}
+Vpa2) votó por un candidato de Convergencia Social (CS) en las elecciones legislativas de 2021 en {municipality}
+Vpa3) votó por un candidato de Revolución Democrática (RD) en las elecciones  legislativas de 2021 en {municipality}
+Vpa4) votó por un candidato del Partido Comunista (PC) en las elecciones legislativas de 2021 en {municipality}.
+Vpa5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones  legislativas de 2021 en {municipality}.
+Vpa6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones legislativas de 2021 en {municipality}.
+Vpa7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones legislativas  de 2021 en {municipality}
+Vpa8) votó por un candidato de Renovación Nacional (RN) en las elecciones legislativas de 2021 en {municipality}
+Vpa9) votó por un candidato del Partido Republicano (PLR) en las elecciones legislativas de 2021 en {municipality}
+Vpa10) votó por un candidato del Partido de la Gente (PDG) en las elecciones legislativas de 2021 en {municipality}
+Vpa11) votó por un candidato del Partido Progresista (PRO) en las elecciones legislativas de 2021 en {municipality}
+Vpa12) votó por un candidato independiente en las elecciones legislativas de 2021 en {municipality}
 
-PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE 2025:
+PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Tcu1) No hay posibilidad de que esta persona vaya a votar – Probabilidad: 0 – en las elecciones presidenciales de 2025 en {municipality}
 Tcu2) Es muy improbable que esta persona vaya a votar – Probabilidad: 0,15 – en las elecciones presidenciales de 2025 en {municipality}
 Tcu3) Es improbable que esta persona vaya a votar – Probabilidad: 0,3 – en las elecciones presidenciales de 2025 en {municipality}
@@ -1044,7 +1044,7 @@ Tcu5) Probable que esta persona vaya a votar – Probabilidad: 0,7 – en las el
 Tcu6) Es muy probable que esta persona vaya a votar – Probabilidad: 0,85 – en las elecciones presidenciales de 2025 en {municipality}
 Tcu7) Hay certeza de que esta persona irá a votar – Probabilidad: 1 – en las elecciones presidenciales de 2025 en {municipality}
 
-PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE 2025:
+PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Vcu1) no votaría en las elecciones presidenciales de 2025 en {municipality}
 Vcu2) votaría por Jeannette Jara, la candidata del Partido Comunista (PC), en las elecciones presidenciales de 2025 en {municipality}
 Vcu3) votaría por José Antonio Kast, el candidato del Partido Republicano (Republicano), en las elecciones presidenciales de 2025 en {municipality}

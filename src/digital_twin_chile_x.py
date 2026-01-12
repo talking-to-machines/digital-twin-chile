@@ -16,9 +16,13 @@ from config.digital_twin_config import (
     NUM_POSTS_PER_PROFILE,
     PROFILE_SEARCH_FILE,
     ENTITY_GEOGRAPHIC_INTERVIEW_REGEX_PATTERNS,
-    VOTING_PREFERENCE_INTERVIEW_REGEX_PATTERNS,
+    VOTING_PREFERENCE_INTERVIEW_WO_VOTING_RESULTS_REGEX_PATTERNS,
+    VOTING_PREFERENCE_INTERVIEW_WITH_VOTING_RESULTS_REGEX_PATTERNS,
     POST_ENTITY_GEOGRAPHIC_INTERVIEW_FILE,
-    POST_VOTING_PREFERENCE_INTERVIEW_FILE,
+    POST_VOTING_PREFERENCE_PART1_INTERVIEW_FILE,
+    POST_VOTING_PREFERENCE_PART2_INTERVIEW_FILE,
+    INCLUDE_PROFILE_INFORMATION,
+    INCLUDE_WEB_SEARCH,
 )
 from src.utils import (
     perform_x_profile_search,
@@ -30,18 +34,19 @@ from src.utils import (
 from prompts.prompt_template import (
     x_digital_twin_system_prompt,
     x_digital_twin_entity_geographic_user_prompt,
-    x_digital_twin_voting_preference_user_prompt,
+    x_digital_twin_voting_preference_wo_voting_results_user_prompt,
+    x_digital_twin_voting_preference_with_voting_results_user_prompt,
 )
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 LOCAL_PROFILE_METADATA_FILE = os.path.join(
     base_dir,
     "../data/digital-twin-chile-x/profile_metadata.csv",
-)
+)  # TODO needs to be updated with new X dataset
 LOCAL_PROFILE_POST_FILE = os.path.join(
     base_dir,
     "../data/digital-twin-chile-x/profile_tweets.csv",
-)
+)  # TODO needs to be updated with new X dataset
 PAST_ELECTION_RESULTS_FILE = os.path.join(
     base_dir,
     "../data/digital-twin-chile-x/chile_past_election_results.txt",
@@ -54,6 +59,8 @@ def conduct_entity_geographic_interview(
     profile_metadata_file: str,
     post_file: str,
     output_file: str,
+    include_profile_info: bool = True,
+    include_web_search: bool = True,
 ) -> None:
     perform_profile_interview(
         project_name=project_name,
@@ -66,6 +73,8 @@ def conduct_entity_geographic_interview(
         user_prompt_template=x_digital_twin_entity_geographic_user_prompt,
         llm_response_field="x_digital_twin_entity_geographic_llm_response",
         interview_type="x_digital_twin_entity_geographic",
+        include_profile_info=include_profile_info,
+        include_web_search=include_web_search,
     )
 
     # Preprocess post interview results
@@ -84,23 +93,25 @@ def conduct_entity_geographic_interview(
     )
 
     # Format past conversation
-    post_interview_results["history"] = post_interview_results.apply(
-        lambda row: json.dumps(
-            [
-                {"role": "system", "content": x_digital_twin_system_prompt},
-                {
-                    "role": "user",
-                    "content": x_digital_twin_entity_geographic_user_prompt,
-                },
-                {
-                    "role": "assistant",
-                    "content": row["x_digital_twin_entity_geographic_llm_response"],
-                },
-            ],
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ),
-        axis=1,
+    post_interview_results["entity_geographic_interview_history"] = (
+        post_interview_results.apply(
+            lambda row: json.dumps(
+                [
+                    {"role": "system", "content": x_digital_twin_system_prompt},
+                    {
+                        "role": "user",
+                        "content": x_digital_twin_entity_geographic_user_prompt,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": row["x_digital_twin_entity_geographic_llm_response"],
+                    },
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            axis=1,
+        )
     )
 
     # Save formatted interview results
@@ -174,12 +185,91 @@ def upload_vector_store(
     return [vs_id]
 
 
-def conduct_voting_preference_interview(
+def conduct_voting_preference_interview_without_voting_results(
     project_name: str,
     execution_date: str,
     profile_metadata_file: str,
     post_file: str,
     output_file: str,
+    include_profile_info: bool = True,
+    include_web_search: bool = True,
+) -> None:
+    perform_profile_interview(
+        project_name=project_name,
+        execution_date=execution_date,
+        gpt_model=GPT_MODEL,
+        profile_metadata_file=profile_metadata_file,
+        post_file=post_file,
+        output_file=output_file,
+        system_prompt_template="",
+        user_prompt_template=x_digital_twin_voting_preference_wo_voting_results_user_prompt,
+        llm_response_field="x_digital_twin_voting_preference_wo_voting_results_llm_response",
+        interview_type="x_digital_twin_voting_preference_wo_voting_results",
+        history_field="entity_geographic_interview_history",
+        include_profile_info=include_profile_info,
+        include_web_search=include_web_search,
+    )
+
+    # Preprocess post interview results
+    post_interview_results = pd.read_csv(
+        os.path.join(base_dir, "../data", project_name, execution_date, output_file)
+    )
+    extracted_responses = post_interview_results[
+        "x_digital_twin_voting_preference_wo_voting_results_llm_response"
+    ].apply(extract_llm_responses)
+    post_interview_results = pd.concat(
+        [post_interview_results, extracted_responses], axis=1
+    )
+    # Merge identical columns from interview response
+    post_interview_results = coalesce_columns_by_regex(
+        post_interview_results,
+        VOTING_PREFERENCE_INTERVIEW_WO_VOTING_RESULTS_REGEX_PATTERNS,
+    )
+
+    # Include LLM model information
+    post_interview_results = post_interview_results.copy()
+    post_interview_results["model"] = GPT_MODEL
+
+    # Format past conversation
+    post_interview_results["voting_preference_wo_voting_results_history"] = (
+        post_interview_results.apply(
+            lambda row: json.dumps(
+                json.loads(row["entity_geographic_interview_history"])
+                + [
+                    {"role": "system", "content": x_digital_twin_system_prompt},
+                    {
+                        "role": "user",
+                        "content": x_digital_twin_voting_preference_wo_voting_results_user_prompt,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": row[
+                            "x_digital_twin_voting_preference_wo_voting_results_llm_response"
+                        ],
+                    },
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            axis=1,
+        )
+    )
+
+    # Save formatted interview results
+    post_interview_results.to_csv(
+        os.path.join(base_dir, "../data", project_name, execution_date, output_file),
+        index=False,
+    )
+
+
+def conduct_voting_preference_interview_with_voting_results(
+    project_name: str,
+    execution_date: str,
+    profile_metadata_file: str,
+    post_file: str,
+    output_file: str,
+    include_profile_info: bool = True,
+    include_web_search: bool = True,
 ) -> None:
     vector_store_ids = upload_vector_store(
         PAST_ELECTION_RESULTS_FILE,
@@ -194,11 +284,13 @@ def conduct_voting_preference_interview(
         post_file=post_file,
         output_file=output_file,
         system_prompt_template="",
-        user_prompt_template=x_digital_twin_voting_preference_user_prompt,
-        llm_response_field="x_digital_twin_voting_preference_llm_response",
-        interview_type="x_digital_twin_voting_preference",
-        history_field="history",
+        user_prompt_template=x_digital_twin_voting_preference_with_voting_results_user_prompt,
+        llm_response_field="x_digital_twin_voting_preference_with_voting_results_llm_response",
+        interview_type="x_digital_twin_voting_preference_with_voting_results",
+        history_field="voting_preference_wo_voting_results_history",
         vector_store_ids=vector_store_ids,
+        include_profile_info=include_profile_info,
+        include_web_search=include_web_search,
     )
 
     # Preprocess post interview results
@@ -206,14 +298,15 @@ def conduct_voting_preference_interview(
         os.path.join(base_dir, "../data", project_name, execution_date, output_file)
     )
     extracted_responses = post_interview_results[
-        "x_digital_twin_voting_preference_llm_response"
+        "x_digital_twin_voting_preference_with_voting_results_llm_response"
     ].apply(extract_llm_responses)
     post_interview_results = pd.concat(
         [post_interview_results, extracted_responses], axis=1
     )
     # Merge identical columns from interview response
     post_interview_results = coalesce_columns_by_regex(
-        post_interview_results, VOTING_PREFERENCE_INTERVIEW_REGEX_PATTERNS
+        post_interview_results,
+        VOTING_PREFERENCE_INTERVIEW_WITH_VOTING_RESULTS_REGEX_PATTERNS,
     )
 
     # Include LLM model information
@@ -251,21 +344,43 @@ if __name__ == "__main__":
     )
 
     # Step 2: Perform initial interview to idenitfy entity and geographic information
-    print("Step 2: Perform initial interview to idenitfy entity and geographic information.")
+    print(
+        "Step 2: Perform initial interview to idenitfy entity and geographic information."
+    )
     conduct_entity_geographic_interview(
         project_name=PROJECT_NAME,
         execution_date=PIPELINE_EXECUTION_DATE,
         profile_metadata_file=PROFILE_METADATA_SEARCH_FILE,
         post_file=PROFILE_SEARCH_FILE,
         output_file=POST_ENTITY_GEOGRAPHIC_INTERVIEW_FILE,
+        include_profile_info=INCLUDE_PROFILE_INFORMATION,
+        include_web_search=INCLUDE_WEB_SEARCH,
     )
 
-    # Step 3: Perform digital election polling of Chile survey participants
-    print("Step 3: Perform digital election polling of Chile survey participants.")
-    conduct_voting_preference_interview(
+    # Step 3: Perform digital election polling of Chile survey participants without voting results
+    print(
+        "Step 3: Perform digital election polling of Chile survey participants without voting results."
+    )
+    conduct_voting_preference_interview_without_voting_results(
         project_name=PROJECT_NAME,
         execution_date=PIPELINE_EXECUTION_DATE,
         profile_metadata_file=POST_ENTITY_GEOGRAPHIC_INTERVIEW_FILE,
         post_file=PROFILE_SEARCH_FILE,
-        output_file=POST_VOTING_PREFERENCE_INTERVIEW_FILE,
+        output_file=POST_VOTING_PREFERENCE_PART1_INTERVIEW_FILE,
+        include_profile_info=INCLUDE_PROFILE_INFORMATION,
+        include_web_search=INCLUDE_WEB_SEARCH,
+    )
+
+    # Step 4: Perform digital election polling of Chile survey participants with voting results
+    print(
+        "Step 4: Perform digital election polling of Chile survey participants with voting results."
+    )
+    conduct_voting_preference_interview_with_voting_results(
+        project_name=PROJECT_NAME,
+        execution_date=PIPELINE_EXECUTION_DATE,
+        profile_metadata_file=POST_VOTING_PREFERENCE_PART1_INTERVIEW_FILE,
+        post_file=PROFILE_SEARCH_FILE,
+        output_file=POST_VOTING_PREFERENCE_PART2_INTERVIEW_FILE,
+        include_profile_info=INCLUDE_PROFILE_INFORMATION,
+        include_web_search=INCLUDE_WEB_SEARCH,
     )
