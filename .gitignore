@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments & packaging
+.venv/
+venv/
+env/
+Pipfile.lock
+
+# Secrets / env
+.env
+config/.env
+
+# Data and outputs
+/data/
+data/*
+# keep folder but not contents: create data/.gitkeep if needed
+
+# IDEs / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs / builds
+*.log
+dist/
+build/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Other secrets
+credentials.json
+*.pem
