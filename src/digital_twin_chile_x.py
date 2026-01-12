@@ -371,16 +371,16 @@ if __name__ == "__main__":
         include_web_search=INCLUDE_WEB_SEARCH,
     )
 
-    # Step 4: Perform digital election polling of Chile survey participants with voting results
-    print(
-        "Step 4: Perform digital election polling of Chile survey participants with voting results."
-    )
-    conduct_voting_preference_interview_with_voting_results(
-        project_name=PROJECT_NAME,
-        execution_date=PIPELINE_EXECUTION_DATE,
-        profile_metadata_file=POST_VOTING_PREFERENCE_PART1_INTERVIEW_FILE,
-        post_file=PROFILE_SEARCH_FILE,
-        output_file=POST_VOTING_PREFERENCE_PART2_INTERVIEW_FILE,
-        include_profile_info=INCLUDE_PROFILE_INFORMATION,
-        include_web_search=INCLUDE_WEB_SEARCH,
-    )
+    # # Step 4: Perform digital election polling of Chile survey participants with voting results
+    # print(
+    #     "Step 4: Perform digital election polling of Chile survey participants with voting results."
+    # )
+    # conduct_voting_preference_interview_with_voting_results(
+    #     project_name=PROJECT_NAME,
+    #     execution_date=PIPELINE_EXECUTION_DATE,
+    #     profile_metadata_file=POST_VOTING_PREFERENCE_PART1_INTERVIEW_FILE,
+    #     post_file=PROFILE_SEARCH_FILE,
+    #     output_file=POST_VOTING_PREFERENCE_PART2_INTERVIEW_FILE,
+    #     include_profile_info=INCLUDE_PROFILE_INFORMATION,
+    #     include_web_search=INCLUDE_WEB_SEARCH,
+    # )

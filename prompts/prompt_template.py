@@ -940,116 +940,116 @@ Vcu6) votaría por Franco Parisi, candidato del Partido de la Gente, en las elec
 Vcu7) votaría por Marco Enríquez-Ominami, candidato independiente, en las elecciones presidenciales de 2025
 Vcu8) votaría por Eduardo Artés, candidato independiente, en las elecciones presidenciales de 2025"""
 
-x_digital_twin_voting_preference_with_voting_results_user_prompt = """Los resultados de las Elecciones Presidenciales de Chile de noviembre de 2021 se reportan a nivel de COMUNA y REGIÓN (número de votos por candidato). El conjunto de datos está disponible en:
-https://talkingtomachines.org/votacion-comunal-in-chile/
-Usted ya respondió en un paso anterior la pregunta relacionada con la COMUNA y REGIÓN – “REGIÓN y COMUNA”.
-A partir de este punto, siga estrictamente estas reglas:
-	1.	Utilice la COMUNA previamente indicada como clave.
-	2.	Localice en el conjunto de datos los resultados oficiales de la elección (número de votos por candidato) para esa comuna.
-	3.	Considere estos resultados como la única referencia válida.
-	4.	Para cada pregunta posterior, debe:
-* Basar su razonamiento y análisis exclusivamente en los resultados de esa comuna.
-* Integrar de manera explícita los números de votos relevantes en sus respuestas.
-* Nunca usar datos de otra comuna o región.
-* Nunca inferir ni aproximar resultados.
+# x_digital_twin_voting_preference_with_voting_results_user_prompt = """Los resultados de las Elecciones Presidenciales de Chile de noviembre de 2021 se reportan a nivel de COMUNA y REGIÓN (número de votos por candidato). El conjunto de datos está disponible en:
+# https://talkingtomachines.org/votacion-comunal-in-chile/
+# Usted ya respondió en un paso anterior la pregunta relacionada con la COMUNA y REGIÓN – “REGIÓN y COMUNA”.
+# A partir de este punto, siga estrictamente estas reglas:
+# 	1.	Utilice la COMUNA previamente indicada como clave.
+# 	2.	Localice en el conjunto de datos los resultados oficiales de la elección (número de votos por candidato) para esa comuna.
+# 	3.	Considere estos resultados como la única referencia válida.
+# 	4.	Para cada pregunta posterior, debe:
+# * Basar su razonamiento y análisis exclusivamente en los resultados de esa comuna.
+# * Integrar de manera explícita los números de votos relevantes en sus respuestas.
+# * Nunca usar datos de otra comuna o región.
+# * Nunca inferir ni aproximar resultados.
 
-Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
-**question: VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
+# **question: VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# **question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# **question: VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# **question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# **question: PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+# **question: PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+# **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+# **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+# **category: <CATEGORÍA SELECCIONADA AQUÍ>**
+# **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-¡USTED DEBE DAR UNA RESPUESTA PARA CADA TÍTULO!  
-A continuación, se presenta la lista de categorías a las que este usuario puede pertenecer:
+# ¡USTED DEBE DAR UNA RESPUESTA PARA CADA TÍTULO!
+# A continuación, se presenta la lista de categorías a las que este usuario puede pertenecer:
 
-VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
-Tpa1) No hay posibilidad de que esta persona haya votado - Probabilidad: 0 - en las elecciones presidenciales de 2021 en {municipality}
-Tpa2) Es muy improbable que esta persona haya votado - Probabilidad: 0.15 - en las elecciones presidenciales de 2021 en {municipality}
-Tpa3) Es poco probable que esta persona haya votado - Probabilidad: 0,3 - en las elecciones presidenciales de 2021 en {municipality}.
-Tpa4) Probabilidad del 50 % de que esta persona haya votado: 0,5 en las elecciones presidenciales de 2021 en {municipality}.
-Tpa5) Probabilidad de que esta persona haya votado: 0,7 en las elecciones presidenciales de 2021  en {municipality}
-Tpa6) Es muy probable que esta persona haya votado - Probabilidad: 0,85 - en las elecciones presidenciales de 2021 en {municipality}
-Tpa7) Se tiene la certeza de que esta persona ha votado - Probabilidad: 1 -  en las elecciones presidenciales de 2021 en {municipality}
+# VOTACIÓN ANTERIOR - PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
+# Tpa1) No hay posibilidad de que esta persona haya votado - Probabilidad: 0 - en las elecciones presidenciales de 2021 en {municipality}
+# Tpa2) Es muy improbable que esta persona haya votado - Probabilidad: 0.15 - en las elecciones presidenciales de 2021 en {municipality}
+# Tpa3) Es poco probable que esta persona haya votado - Probabilidad: 0,3 - en las elecciones presidenciales de 2021 en {municipality}.
+# Tpa4) Probabilidad del 50 % de que esta persona haya votado: 0,5 en las elecciones presidenciales de 2021 en {municipality}.
+# Tpa5) Probabilidad de que esta persona haya votado: 0,7 en las elecciones presidenciales de 2021  en {municipality}
+# Tpa6) Es muy probable que esta persona haya votado - Probabilidad: 0,85 - en las elecciones presidenciales de 2021 en {municipality}
+# Tpa7) Se tiene la certeza de que esta persona ha votado - Probabilidad: 1 -  en las elecciones presidenciales de 2021 en {municipality}
 
-VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021: 
-Vpa1) no votó en las elecciones presidenciales de 2021 en {municipality}
-Vpa2) votó por Gabriel Boric, candidato de Convergencia Social, en las elecciones presidenciales de 2021 en {municipality}
-Vpa3) votó por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2021 en {municipality}
-Vpa4) votó por Yasna Provoste, candidata del Partido Demócrata Cristiano, en las elecciones presidenciales de 2021 en {municipality}
-Vpa5) votó por Sebastián Sichel, candidato independiente apoyado por Chile Podemos Más, en las elecciones presidenciales de 2021 en {municipality}
-Vpa6) votó por Eduardo Artés, candidato de la Unión Patriótica, en las elecciones presidenciales de 2021
-Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en las elecciones presidenciales de 2021 en {municipality}
-Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021 en {municipality}
+# VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
+# Vpa1) no votó en las elecciones presidenciales de 2021 en {municipality}
+# Vpa2) votó por Gabriel Boric, candidato de Convergencia Social, en las elecciones presidenciales de 2021 en {municipality}
+# Vpa3) votó por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2021 en {municipality}
+# Vpa4) votó por Yasna Provoste, candidata del Partido Demócrata Cristiano, en las elecciones presidenciales de 2021 en {municipality}
+# Vpa5) votó por Sebastián Sichel, candidato independiente apoyado por Chile Podemos Más, en las elecciones presidenciales de 2021 en {municipality}
+# Vpa6) votó por Eduardo Artés, candidato de la Unión Patriótica, en las elecciones presidenciales de 2021
+# Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en las elecciones presidenciales de 2021 en {municipality}
+# Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021 en {municipality}
 
-VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021:
-Tpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones legislativas de 2021 en {municipality}.
-Tpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones legislativas de 2021 en {municipality}.
-Tpa3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones legislativas de 2021 en {municipality}.
-Tpa4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones legislativas de 2021 en {municipality}.
-Tpa5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones parlamentarias de 2021 en {municipality}.
-Tpa6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones legislativas de 2021 en {municipality}.
-Tpa7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones legislativas de 2021 en {municipality}.
+# VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE 2021:
+# Tpa1) No hay posibilidad de que esta persona haya votado – Probabilidad: 0 – en las elecciones legislativas de 2021 en {municipality}.
+# Tpa2) Es muy improbable que esta persona haya votado – Probabilidad: 0,15 – en las elecciones legislativas de 2021 en {municipality}.
+# Tpa3) Es poco probable que esta persona haya votado – Probabilidad: 0,3 – en las elecciones legislativas de 2021 en {municipality}.
+# Tpa4) Hay un 50 % de probabilidades de que esta persona haya votado – Probabilidad: 0,5 – en las elecciones legislativas de 2021 en {municipality}.
+# Tpa5) Es probable que esta persona haya votado – Probabilidad: 0,7 – en las elecciones parlamentarias de 2021 en {municipality}.
+# Tpa6) Es muy probable que esta persona haya votado – Probabilidad: 0,85 – en las elecciones legislativas de 2021 en {municipality}.
+# Tpa7) Hay certeza de que esta persona ha votado – Probabilidad: 1 – en las elecciones legislativas de 2021 en {municipality}.
 
-VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
-Vpa1) no votó en las elecciones legislativas de 2021 en {municipality}
-Vpa2) votó por un candidato de Convergencia Social (CS) en las elecciones legislativas de 2021 en {municipality}
-Vpa3) votó por un candidato de Revolución Democrática (RD) en las elecciones  legislativas de 2021 en {municipality}
-Vpa4) votó por un candidato del Partido Comunista (PC) en las elecciones legislativas de 2021 en {municipality}.
-Vpa5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones  legislativas de 2021 en {municipality}.
-Vpa6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones legislativas de 2021 en {municipality}.
-Vpa7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones legislativas  de 2021 en {municipality}
-Vpa8) votó por un candidato de Renovación Nacional (RN) en las elecciones legislativas de 2021 en {municipality}
-Vpa9) votó por un candidato del Partido Republicano (PLR) en las elecciones legislativas de 2021 en {municipality}
-Vpa10) votó por un candidato del Partido de la Gente (PDG) en las elecciones legislativas de 2021 en {municipality}
-Vpa11) votó por un candidato del Partido Progresista (PRO) en las elecciones legislativas de 2021 en {municipality}
-Vpa12) votó por un candidato independiente en las elecciones legislativas de 2021 en {municipality}
+# VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
+# Vpa1) no votó en las elecciones legislativas de 2021 en {municipality}
+# Vpa2) votó por un candidato de Convergencia Social (CS) en las elecciones legislativas de 2021 en {municipality}
+# Vpa3) votó por un candidato de Revolución Democrática (RD) en las elecciones  legislativas de 2021 en {municipality}
+# Vpa4) votó por un candidato del Partido Comunista (PC) en las elecciones legislativas de 2021 en {municipality}.
+# Vpa5) votó por un candidato del Partido Demócrata Cristiano (PDC) en las elecciones  legislativas de 2021 en {municipality}.
+# Vpa6) votó por un candidato del Partido por la Democracia (PPD) en las elecciones legislativas de 2021 en {municipality}.
+# Vpa7) votó por un candidato de Unión Demócrata Independiente (UDI) en las elecciones legislativas  de 2021 en {municipality}
+# Vpa8) votó por un candidato de Renovación Nacional (RN) en las elecciones legislativas de 2021 en {municipality}
+# Vpa9) votó por un candidato del Partido Republicano (PLR) en las elecciones legislativas de 2021 en {municipality}
+# Vpa10) votó por un candidato del Partido de la Gente (PDG) en las elecciones legislativas de 2021 en {municipality}
+# Vpa11) votó por un candidato del Partido Progresista (PRO) en las elecciones legislativas de 2021 en {municipality}
+# Vpa12) votó por un candidato independiente en las elecciones legislativas de 2021 en {municipality}
 
-PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
-Tcu1) No hay posibilidad de que esta persona vaya a votar – Probabilidad: 0 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu2) Es muy improbable que esta persona vaya a votar – Probabilidad: 0,15 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu3) Es improbable que esta persona vaya a votar – Probabilidad: 0,3 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu4) Probabilidad del 50 % de que esta persona vote – Probabilidad: 0,5 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu5) Probable que esta persona vaya a votar – Probabilidad: 0,7 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu6) Es muy probable que esta persona vaya a votar – Probabilidad: 0,85 – en las elecciones presidenciales de 2025 en {municipality}
-Tcu7) Hay certeza de que esta persona irá a votar – Probabilidad: 1 – en las elecciones presidenciales de 2025 en {municipality}
+# PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
+# Tcu1) No hay posibilidad de que esta persona vaya a votar – Probabilidad: 0 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu2) Es muy improbable que esta persona vaya a votar – Probabilidad: 0,15 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu3) Es improbable que esta persona vaya a votar – Probabilidad: 0,3 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu4) Probabilidad del 50 % de que esta persona vote – Probabilidad: 0,5 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu5) Probable que esta persona vaya a votar – Probabilidad: 0,7 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu6) Es muy probable que esta persona vaya a votar – Probabilidad: 0,85 – en las elecciones presidenciales de 2025 en {municipality}
+# Tcu7) Hay certeza de que esta persona irá a votar – Probabilidad: 1 – en las elecciones presidenciales de 2025 en {municipality}
 
-PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
-Vcu1) no votaría en las elecciones presidenciales de 2025 en {municipality}
-Vcu2) votaría por Jeannette Jara, la candidata del Partido Comunista (PC), en las elecciones presidenciales de 2025 en {municipality}
-Vcu3) votaría por José Antonio Kast, el candidato del Partido Republicano (Republicano), en las elecciones presidenciales de 2025 en {municipality}
-Vcu4) votaría por Evelyn Matthei, la candidata apoyada por la Unión Demócrata Independiente (UDI) / Renovación Nacional (RN), en las elecciones presidenciales de 2025 en {municipality}
-Vcu5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertario (PNL), en las elecciones presidenciales de 2025 en {municipality}
-Vcu6) votaría por Franco Parisi, candidato del Partido de la Gente (PDG), en las elecciones presidenciales de 2025 en {municipality}
-Vcu7) votaría por Marco Enríquez-Ominami, candidato independiente no afiliado a ningún partido mayoritario (recogiendo firmas), en las elecciones presidenciales de 2025 en {municipality}
-Vcu8) votaría por Eduardo Artés, candidato independiente no afiliado a ningún partido mayoritario (en proceso de recolección de firmas), en las elecciones presidenciales de 2025 en {municipality}"""
+# PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
+# Vcu1) no votaría en las elecciones presidenciales de 2025 en {municipality}
+# Vcu2) votaría por Jeannette Jara, la candidata del Partido Comunista (PC), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu3) votaría por José Antonio Kast, el candidato del Partido Republicano (Republicano), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu4) votaría por Evelyn Matthei, la candidata apoyada por la Unión Demócrata Independiente (UDI) / Renovación Nacional (RN), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertario (PNL), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu6) votaría por Franco Parisi, candidato del Partido de la Gente (PDG), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu7) votaría por Marco Enríquez-Ominami, candidato independiente no afiliado a ningún partido mayoritario (recogiendo firmas), en las elecciones presidenciales de 2025 en {municipality}
+# Vcu8) votaría por Eduardo Artés, candidato independiente no afiliado a ningún partido mayoritario (en proceso de recolección de firmas), en las elecciones presidenciales de 2025 en {municipality}"""
