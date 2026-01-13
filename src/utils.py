@@ -785,7 +785,7 @@ def perform_profile_interview(
 
 
 def row_query(row: pd.Series, args: list) -> str:
-    system_prompt = row[args[0][0]]
+    system_prompt = row.get(args[0][0], "")
     user_prompt = row[args[0][1]]
     history_field = args[0][2]
     gpt_model = args[0][3]
@@ -809,24 +809,24 @@ def row_query(row: pd.Series, args: list) -> str:
                 history = []
         if isinstance(history, list) and history:
             input = []
-            # messages.append({"role": "system", "content": system_prompt})
+
             for m in history:
                 r, c = m.get("role", "user"), m.get("content", "")
                 input.append({"role": r, "content": c})
 
             if system_prompt and system_prompt in row.index:
-                input.append({"role": "system", "content": row[system_prompt]})
+                input.append({"role": "system", "content": system_prompt})
 
-            input.append({"role": "user", "content": row[user_prompt]})
+            input.append({"role": "user", "content": user_prompt})
         else:
             input = [
-                {"role": "system", "content": row[system_prompt]},
-                {"role": "user", "content": row[user_prompt]},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
             ]
     else:
         input = [
-            {"role": "system", "content": row[system_prompt]},
-            {"role": "user", "content": row[user_prompt]},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
         ]
     query_parameters["input"] = input
 

@@ -100,7 +100,7 @@ PERSONA QUE VIVE EN CHILE: ¿El usuario de esta cuenta vive en Chile?
 PLC1) Sí
 PLC2) No
 
-REGIÓN: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la región en la que vive el usuario de la siguiente lista. De lo contrario, responda con "NA".
+REGIÓN: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la región en la que vive el usuario de la siguiente lista.
 REG1) DE ANTOFAGASTA
 REG2) DE ARICA Y PARINACOTA
 REG3) DE ATACAMA
@@ -118,7 +118,7 @@ REG14) DEL LIBERTADOR GENERAL BERNARDO O'HIGGINS
 REG15) DEL MAULE
 REG16) METROPOLITANA DE SANTIAGO
 
-COMUNA: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la comuna en la que vive el usuario de la siguiente lista. De lo contrario, responda con "NA".
+COMUNA: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la comuna en la que vive el usuario de la siguiente lista.
 COMU1) ALGARROBO
 COMU2) ALHUE
 COMU3) ALTO BIOBIO
