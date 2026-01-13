@@ -41,7 +41,7 @@ from prompts.prompt_template import (
 base_dir = os.path.dirname(os.path.abspath(__file__))
 LOCAL_PROFILE_METADATA_FILE = os.path.join(
     base_dir,
-    "../data/digital-twin-chile-x/final_meta_user_df.csv",  # TODO to be updated with final file
+    "../data/digital-twin-chile-x/final_meta_user_df.csv",
 )
 LOCAL_PROFILE_POST_FILE = os.path.join(
     base_dir,
