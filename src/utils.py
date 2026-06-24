@@ -26,62 +26,97 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 
+# Mapping of prompt placeholder -> source column in the profile metadata frame.
+_PROFILE_FIELD_COLUMNS = {
+    "profile_picture": "profilePicture",
+    "name": "name",
+    "account_id": "account_id",
+    "location": "location",
+    "description": "description",
+    "url": "url",
+    "created_at": "createdAt",
+    "is_verified": "isVerified",
+    "is_blue_verified": "isBlueVerified",
+    "protected": "protected",
+    "followers": "followers",
+    "following": "following",
+    "statuses_count": "statusesCount",
+    "favourites_count": "favouritesCount",
+    "media_count": "mediaCount",
+    "tweets": "posts_combined",
+}
+
+
+def build_profile_args(
+    row: pd.Series,
+    interview_type: str = "x",
+    include_profile_info: bool = True,
+) -> dict:
+    """Build the placeholder -> value mapping for a single profile row.
+
+    When ``include_profile_info`` is False every profile field is blanked out
+    (the platform label is still provided so prompt scaffolding renders), which
+    is what the "without profile info" experiment variants expect.
+    """
+    # Only X (formerly Twitter) profiles are supported by the pipeline.
+    if not interview_type.startswith("x"):
+        return {}
+
+    if include_profile_info:
+        profile_args = {
+            placeholder: row.get(column, "")
+            for placeholder, column in _PROFILE_FIELD_COLUMNS.items()
+        }
+    else:
+        profile_args = {placeholder: "" for placeholder in _PROFILE_FIELD_COLUMNS}
+
+    profile_args["platform"] = "X (anteriormente Twitter)"
+    return profile_args
+
+
+def inject_profile_fields(
+    row: pd.Series,
+    template: str,
+    interview_type: str = "x",
+    include_profile_info: bool = True,
+) -> str:
+    """Substitute profile placeholders into a template via literal replacement.
+
+    Unlike ``str.format``, this only replaces the known ``{placeholder}`` tokens
+    and leaves every other brace untouched. That matters for the treatment arms
+    whose user prompts embed literal JSON (single ``{`` / ``}``) next to the
+    profile placeholders (Arms B/C/D).
+    """
+    profile_args = build_profile_args(row, interview_type, include_profile_info)
+    for placeholder, value in profile_args.items():
+        template = template.replace("{" + placeholder + "}", str(value))
+    return template
+
+
 def construct_system_prompt(
     row: pd.Series,
     system_prompt_template: str,
     interview_type: str,
     include_profile_info: bool = True,
 ) -> str:
-    if include_profile_info:
-        if interview_type.startswith("x"):
-            profile_args = {
-                "profile_picture": row.get("profilePicture", ""),
-                "name": row.get("name", ""),
-                "account_id": row.get("account_id", ""),
-                "location": row.get("location", ""),
-                "description": row.get("description", ""),
-                "url": row.get("url", ""),
-                "created_at": row.get("createdAt", ""),
-                "is_verified": row.get("isVerified", ""),
-                "is_blue_verified": row.get("isBlueVerified", ""),
-                "protected": row.get("protected", ""),
-                "followers": row.get("followers", ""),
-                "following": row.get("following", ""),
-                "statuses_count": row.get("statusesCount", ""),
-                "favourites_count": row.get("favouritesCount", ""),
-                "media_count": row.get("mediaCount", ""),
-                "tweets": row.get("posts_combined", ""),
-            }
-
-        else:
-            profile_args = {}
-    else:
-        profile_args = {
-            "profile_picture": "",
-            "name": "",
-            "account_id": "",
-            "location": "",
-            "description": "",
-            "url": "",
-            "created_at": "",
-            "is_verified": "",
-            "is_blue_verified": "",
-            "protected": "",
-            "followers": "",
-            "following": "",
-            "statuses_count": "",
-            "favourites_count": "",
-            "media_count": "",
-            "tweets": "",
-        }
-
+    profile_args = build_profile_args(row, interview_type, include_profile_info)
     return system_prompt_template.format(**profile_args)
 
 
 def construct_user_prompt(
-    row: pd.Series, user_prompt_template: str, interview_type: str
+    row: pd.Series,
+    user_prompt_template: str,
+    interview_type: str,
+    include_profile_info: bool = True,
+    inject_profile: bool = False,
 ) -> str:
-
+    # Baseline / Arm A keep profile data in the system prompt, so the user
+    # prompt is returned verbatim. Arms B/C/D place profile data in the user
+    # prompt and request literal injection instead.
+    if inject_profile:
+        return inject_profile_fields(
+            row, user_prompt_template, interview_type, include_profile_info
+        )
     return user_prompt_template
 
 
@@ -246,6 +281,74 @@ def coalesce_columns_by_regex(data: pd.DataFrame, regex_list: list) -> pd.DataFr
         cols_to_drop = sorted_cols[1:]
         data = data.drop(columns=cols_to_drop)
     return data
+
+
+def extract_json_predictions(
+    text,
+    field_keys: tuple = (
+        "symbol",
+        "category",
+        "speculation",
+        "explanation",
+        "evidence_basis",
+    ),
+) -> pd.Series:
+    """Flatten a Stage 2 JSON prediction object (Arms B/C) into a flat Series.
+
+    The two-stage arms return JSON of the form
+    ``{"predictions": {"EDAD": {"symbol": ..., "category": ...}, ...}, ...}``.
+    Each prediction field becomes a ``"<QUESTION> - <field>"`` column so that
+    the downstream analysis schema matches the regex-based arms. Top-level
+    bookkeeping fields (cannot_infer_fields, overall_confidence, ...) are kept
+    under an underscore-prefixed name. Parsing failures yield an empty Series.
+    """
+    flattened_series = pd.Series(dtype="object")
+    if pd.isnull(text) or not isinstance(text, str) or not text.strip():
+        return flattened_series
+
+    raw = text.strip()
+    # Strip Markdown code fences the model may wrap the JSON in.
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z0-9]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw).strip()
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        # Fall back to the first balanced-looking {...} block in the text.
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return flattened_series
+        try:
+            data = json.loads(match.group(0))
+        except Exception:
+            return flattened_series
+
+    if not isinstance(data, dict):
+        return flattened_series
+
+    predictions = data.get("predictions", {})
+    if isinstance(predictions, dict):
+        for question_key, prediction in predictions.items():
+            if not isinstance(prediction, dict):
+                continue
+            for field in field_keys:
+                if field in prediction and prediction[field] is not None:
+                    flattened_series[f"{question_key} - {field}"] = prediction[field]
+
+    for meta_key in (
+        "subject_id",
+        "overall_confidence",
+        "cannot_infer_fields",
+        "high_speculation_fields",
+    ):
+        if meta_key in data and data[meta_key] is not None:
+            value = data[meta_key]
+            if isinstance(value, (list, dict)):
+                value = json.dumps(value, ensure_ascii=False)
+            flattened_series[f"_{meta_key}"] = value
+
+    return flattened_series
 
 
 def _coerce_history(x):
@@ -644,6 +747,8 @@ def perform_profile_interview(
     include_profile_info: bool = True,
     use_row_query: bool = False,
     enable_web_search: bool = False,
+    inject_profile_into_user_prompt: bool = False,
+    user_prompt_field_override: str = None,
 ) -> None:
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -692,9 +797,23 @@ def perform_profile_interview(
             args=(system_prompt_template, interview_type, include_profile_info),
             axis=1,
         )
-    profile_metadata[f"{interview_type}_user_prompt"] = profile_metadata.apply(
-        construct_user_prompt, args=(user_prompt_template, interview_type), axis=1
-    )
+    if user_prompt_field_override:
+        # Use a per-row user prompt that the caller pre-computed on disk (e.g. a
+        # two-stage arm's Stage 2 prompt with the Stage 1 evidence injected).
+        profile_metadata[f"{interview_type}_user_prompt"] = profile_metadata[
+            user_prompt_field_override
+        ]
+    else:
+        profile_metadata[f"{interview_type}_user_prompt"] = profile_metadata.apply(
+            construct_user_prompt,
+            args=(
+                user_prompt_template,
+                interview_type,
+                include_profile_info,
+                inject_profile_into_user_prompt,
+            ),
+            axis=1,
+        )
 
     # Generate custom ids
     if "custom_id" in profile_metadata.columns:

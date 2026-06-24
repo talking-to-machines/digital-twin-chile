@@ -35,6 +35,30 @@ POST_VOTING_PREFERENCE_WO_VOTING_RESULTS_INTERVIEW_FILE = (
 )
 POST_VOTING_PREFERENCE_WITH_VOTING_RESULTS_INTERVIEW_FILE = f"post_voting_preference_interview_with_voting_results_{PIPELINE_EXECUTION_DATE}.csv"
 
+
+def build_variant_suffix(include_profile_info: bool, enable_web_search: bool) -> str:
+    """Return the profile-info / web-search variant suffix used in output paths."""
+    if enable_web_search and include_profile_info:
+        return "with_profile_info_with_web_search"
+    elif enable_web_search and not include_profile_info:
+        return "without_profile_info_with_web_search"
+    elif not enable_web_search and include_profile_info:
+        return "with_profile_info_without_web_search"
+    else:
+        return "without_profile_info_without_web_search"
+
+
+def build_execution_date(
+    include_profile_info: bool, enable_web_search: bool, treatment_arm: str
+) -> str:
+    """Namespace each run by variant and treatment arm so outputs never clobber.
+
+    e.g. ``pilot_with_profile_info_with_web_search_arm_a``.
+    """
+    variant = build_variant_suffix(include_profile_info, enable_web_search)
+    return f"pilot_{variant}_arm_{treatment_arm}"
+
+
 ENTITY_GEOGRAPHIC_INTERVIEW_REGEX_PATTERNS = [
     r"^PERSONA REAL.*\-\s*explanation$",
     r"^PERSONA REAL.*\-\s*symbol$",

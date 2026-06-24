@@ -1,0 +1,323 @@
+{
+  "subject_id": "eduardomenoni",
+  "seed_suffix": "",
+  "order": {
+    "EDAD": [
+      "AG2) De 18 a 24 años",
+      "AG7) 65 años o más",
+      "AG6) De 55 a 64 años",
+      "AG1) Menor de 18 años",
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir la edad",
+      "AG5) De 45 a 54 años",
+      "AG4) De 35 a 44 años",
+      "AG3) De 25 a 34 años"
+    ],
+    "SEXO": [
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir el género",
+      "S1) Masculino",
+      "S2) Femenino"
+    ],
+    "PINC": [
+      "PINC14) $7.500.001 a $10.000.000",
+      "PINC15) $10.000.001 a $15.000.000",
+      "PINC5) $200.001 a $350.000",
+      "PINC4) $100.001 a $200.000",
+      "PINC12) $3.000.001 a $5.000.000",
+      "PINC7) $500.001 a $750.000",
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir el ingreso personal",
+      "PINC13) $5.000.001 a $7.500.000",
+      "PINC3) $60.001 a $100.000",
+      "PINC17) Más de $20.000.000",
+      "PINC6) $350.001 a $500.000",
+      "PINC10) $1.500.001 a $2.000.000",
+      "PINC8) $750.001 a $1.000.000",
+      "PINC1) $0 a $35.000",
+      "PINC9) $1.000.001 a $1.500.000",
+      "PINC16) $15.000.001 a $20.000.000",
+      "PINC2) $35.001 a $60.000",
+      "PINC11) $2.000.001 a $3.000.000"
+    ],
+    "HINC": [
+      "HINC1) $0 a $35.000",
+      "HINC17) Más de $20.000.000",
+      "HINC16) $15.000.001 a $20.000.000",
+      "HINC3) $60.001 a $100.000",
+      "HINC6) $350.001 a $500.000",
+      "HINC14) $7.500.001 a $10.000.000",
+      "HINC10) $1.500.001 a $2.000.000",
+      "HINC12) $3.000.001 a $5.000.000",
+      "HINC7) $500.001 a $750.000",
+      "HINC15) $10.000.001 a $15.000.000",
+      "HINC11) $2.000.001 a $3.000.000",
+      "HINC9) $1.000.001 a $1.500.000",
+      "HINC2) $35.001 a $60.000",
+      "HINC8) $750.001 a $1.000.000",
+      "HINC4) $100.001 a $200.000",
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir el ingreso del hogar",
+      "HINC13) $5.000.001 a $7.500.000",
+      "HINC5) $200.001 a $350.000"
+    ],
+    "ESTADO_CIVIL": [
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir el estado civil",
+      "MAR4) Divorciado(a) — legalmente divorciado/a",
+      "MAR2) Separado(a) — legalmente casado/a pero separado/a",
+      "MAR3) Soltero(a) — nunca casado/a",
+      "MAR1) Casado(a) — legalmente casado/a y viviendo con su cónyuge",
+      "MAR5) Viudo(a) — cónyuge fallecido"
+    ],
+    "EDUCACION": [
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir el nivel educativo",
+      "EDU11) Profesional (carreras 1–6 años)",
+      "EDU13) Doctorado",
+      "EDU8) Técnica Profesional",
+      "EDU1) Sala Cuna o Jardín Infantil",
+      "EDU4) Especial o Diferencial",
+      "EDU2) PreKinder",
+      "EDU9) Humanidades (Sistema antiguo)",
+      "EDU5) Primaria o Preparatoria (Sistema antiguo)",
+      "EDU14) Nunca asistió",
+      "EDU10) Técnico Nivel Superior (carreras 1–4 años)",
+      "EDU7) Científico-Humanista",
+      "EDU3) Kinder",
+      "EDU6) Educación Básica",
+      "EDU12) Magíster"
+    ],
+    "OCUPACION": [
+      "OCCUP1) Patrón o dueño de empresa o negocio",
+      "CI) CANNOT_INFER — sin evidencia suficiente para inferir la ocupación",
+      "OCCUP8) Servicio doméstico puertas afuera",
+      "OCCUP7) Servicio doméstico puertas adentro",
+      "OCCUP6) Fuerzas Armadas, de Orden y Seguridad",
+      "OCCUP5) Empleado u obrero del sector privado",
+      "OCCUP4) Empleado u obrero de empresas públicas",
+      "OCCUP3) Empleado u obrero del sector público",
+      "OCCUP2) Trabajador por cuenta propia"
+    ],
+    "IDEOLOGIA": [
+      "IoPoR4) 4",
+      "IoPoR7) 7",
+      "IoPoR10) 10 (Derecha)",
+      "CI) CANNOT_INFER — sin señales políticas suficientes para situar al usuario en la escala",
+      "IoPoR2) 2",
+      "IoPoR9) 9",
+      "IoPoR1) 1 (Izquierda)",
+      "IoPoR5) 5 (Centro) — NO usar por defecto; solo con evidencia",
+      "IoPoR6) 6",
+      "IoPoR3) 3",
+      "IoPoR8) 8"
+    ],
+    "PARTIDO": [
+      "PP13) Partido Social Cristiano",
+      "PP12) Evolución Política (EVOPOLI)",
+      "PP3) Frente Amplio",
+      "PP6) Democracia Cristiana (DC)",
+      "PP14) Partido Radical (PR)",
+      "PP11) Partido Demócratas Chile",
+      "PP10) Partido Liberal",
+      "CI) CANNOT_INFER — sin evidencia suficiente para identificar afinidad partidaria",
+      "PP1) Partido Republicano",
+      "PP5) Partido Socialista (PS)",
+      "PP15) Frente Regionalista Verde Social (FRVS)",
+      "PP9) Partido de la Gente (PDG)",
+      "PP7) Unión Demócrata Independiente (UDI)",
+      "PP8) Partido Por la Democracia (PPD)",
+      "PP4) Partido Comunista (PC)",
+      "PP2) Renovación Nacional (RN)"
+    ],
+    "AFINIDAD": [
+      "7) Mucha simpatía",
+      "4)",
+      "CI) CANNOT_INFER — sin partido identificado o sin evidencia de afinidad",
+      "2)",
+      "3)",
+      "5)",
+      "1) Ninguna simpatía",
+      "6)"
+    ],
+    "INTERES": [
+      "CI) CANNOT_INFER — sin evidencia suficiente para estimar el interés político",
+      "INTP2) Algo interesado(a)",
+      "INTP3) Poco interesado(a)",
+      "INTP4) Nada interesado(a)",
+      "INTP1) Muy interesado(a)"
+    ],
+    "ATT2025": [
+      "ATT25_2) Algo",
+      "CI) CANNOT_INFER — sin evidencia sobre atención a la campaña 2025",
+      "ATT25_3) Un poco",
+      "ATT25_4) Nada",
+      "ATT25_1) Mucho"
+    ],
+    "ATT2021": [
+      "ATT21_3) Un poco",
+      "ATT21_2) Algo",
+      "ATT21_4) Nada",
+      "ATT21_1) Mucho",
+      "CI) CANNOT_INFER — sin evidencia sobre atención a la campaña 2021"
+    ],
+    "CONFIANZA": [
+      "TRUS4) Algunas veces confío en otras personas",
+      "TRUS5) Nunca confío en otras personas",
+      "TRUS1) Siempre confío en otras personas",
+      "TRUS3) Aproximadamente la mitad del tiempo confío en otras personas",
+      "CI) CANNOT_INFER — sin evidencia sobre confianza interpersonal",
+      "TRUS2) La mayor parte del tiempo confío en otras personas"
+    ],
+    "THPA": [
+      "Thpa6) Es muy probable que haya votado — prob: 0,85",
+      "CI) CANNOT_INFER — sin evidencia sobre participación presidencial 2021",
+      "Thpa2) Es muy improbable que haya votado — prob: 0,15",
+      "Thpa4) 50% de probabilidades de que haya votado — prob: 0,5",
+      "Thpa7) Se tiene certeza de que ha votado — prob: 1",
+      "Thpa1) No hay posibilidad de que haya votado — prob: 0",
+      "Thpa5) Es probable que haya votado — prob: 0,7",
+      "Thpa3) Es improbable que haya votado — prob: 0,3"
+    ],
+    "VPA": [
+      "Vpa2) Votó por Gabriel Boric (Convergencia Social)",
+      "Vpa3) Votó por José Antonio Kast (Partido Republicano)",
+      "Vpa7) Votó por Marco Enríquez-Ominami (Partido Progresista)",
+      "Vpa4) Votó por Yasna Provoste (PDC)",
+      "Vpa1) No votó en las elecciones presidenciales de 2021",
+      "Vpa6) Votó por Eduardo Artés (Unión Patriótica)",
+      "CI) CANNOT_INFER — sin evidencia sobre opción de voto presidencial 2021",
+      "Vpa5) Votó por Sebastián Sichel (Chile Podemos Más)",
+      "Vpa8) Votó por Franco Parisi (Partido de la Gente)"
+    ],
+    "TPAINDV_LEG": [
+      "Tpaindv5) Es probable que haya votado — prob: 0,7",
+      "Tpaindv3) Es poco probable que haya votado — prob: 0,3",
+      "Tpaindv6) Es muy probable que haya votado — prob: 0,85",
+      "Tpaindv1) No hay posibilidad de que haya votado — prob: 0",
+      "CI) CANNOT_INFER — sin evidencia sobre participación legislativa 2021",
+      "Tpaindv2) Es muy improbable que haya votado — prob: 0,15",
+      "Tpaindv7) Hay certeza de que ha votado — prob: 1",
+      "Tpaindv4) 50% de probabilidades de que haya votado — prob: 0,5"
+    ],
+    "VPAINDV_LEG": [
+      "Vpaindv2) Votó por un candidato de Convergencia Social (CS)",
+      "Vpaindv12) Votó por un candidato independiente",
+      "CI) CANNOT_INFER — sin evidencia sobre opción de voto legislativo 2021",
+      "Vpaindv3) Votó por un candidato de Revolución Democrática (RD)",
+      "Vpaindv4) Votó por un candidato del Partido Comunista (PC)",
+      "Vpaindv10) Votó por un candidato del Partido de la Gente (PDG)",
+      "Vpaindv5) Votó por un candidato del Partido Demócrata Cristiano (PDC)",
+      "Vpaindv11) Votó por un candidato del Partido Progresista (PRO)",
+      "Vpaindv6) Votó por un candidato del Partido por la Democracia (PPD)",
+      "Vpaindv1) No votó en las elecciones legislativas de 2021",
+      "Vpaindv9) Votó por un candidato del Partido Republicano (PLR)",
+      "Vpaindv7) Votó por un candidato de Unión Demócrata Independiente (UDI)",
+      "Vpaindv8) Votó por un candidato de Renovación Nacional (RN)"
+    ],
+    "TCUINDV": [
+      "Tcuindv6) Es muy probable que vaya a votar — prob: 0,85",
+      "Tcuindv3) Es improbable que vaya a votar — prob: 0,3",
+      "Tcuindv5) Probable que vaya a votar — prob: 0,7",
+      "Tcuindv2) Es muy improbable que vaya a votar — prob: 0,15",
+      "Tcuindv7) Hay certeza de que irá a votar — prob: 1",
+      "CI) CANNOT_INFER — sin evidencia sobre intención de participación 2025",
+      "Tcuindv1) No hay posibilidad de que vaya a votar — prob: 0",
+      "Tcuindv4) 50% de probabilidades de que vote — prob: 0,5"
+    ],
+    "VCUINDV": [
+      "Vcuindv8) Votaría por Eduardo Artés (independiente)",
+      "Vcuindv3) Votaría por José Antonio Kast (Republicano)",
+      "Vcuindv2) Votaría por Jeannette Jara (PC)",
+      "Vcuindv4) Votaría por Evelyn Matthei (UDI/RN)",
+      "Vcuindv5) Votaría por Johannes Kaiser (PNL)",
+      "Vcuindv6) Votaría por Franco Parisi (PDG)",
+      "CI) CANNOT_INFER — sin evidencia sobre intención de voto 2025",
+      "Vcuindv7) Votaría por Marco Enríquez-Ominami (independiente)",
+      "Vcuindv1) No votaría en las elecciones presidenciales de 2025"
+    ],
+    "VCU_FECHA_TWEET": [
+      "Vcu6) Votaría por Franco Parisi (PDG)",
+      "Vcu4) Votaría por Evelyn Matthei (UDI)",
+      "Vcu7) Votaría por Marco Enríquez-Ominami (independiente)",
+      "Vcu5) Votaría por Johannes Kaiser (PNL)",
+      "Vcu2) Votaría por José Antonio Kast (Partido Republicano)",
+      "Vcu3) Votaría por Jeannette Jara (PC)",
+      "CI) CANNOT_INFER — sin evidencia sobre intención en fecha del último tweet",
+      "Vcu8) Votaría por Eduardo Artés (independiente)",
+      "Vcu1) No votaría en las elecciones presidenciales de 2025"
+    ],
+    "INDECISION": [
+      "Und3) Es poco probable que cambie — prob: 0,3",
+      "CI) CANNOT_INFER — sin evidencia sobre indecisión electoral",
+      "Und6) Es muy probable que cambie — prob: 0,85",
+      "Und1) No hay posibilidad de cambio — prob: 0",
+      "Und5) Es probable que cambie — prob: 0,7",
+      "Und4) 50% de probabilidades de cambio — prob: 0,5",
+      "Und2) Es muy improbable que cambie — prob: 0,15",
+      "Und7) Hay certeza de que cambiará — prob: 1"
+    ],
+    "FAV_KAST": [
+      "Kfa4) Opinión muy desfavorable de José Antonio Kast",
+      "Kfa1) Opinión muy favorable de José Antonio Kast",
+      "Kfa2) Opinión algo favorable de José Antonio Kast",
+      "Kfa5) Desconozco quién es José Antonio Kast",
+      "Kfa3) Opinión algo desfavorable de José Antonio Kast",
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Kast"
+    ],
+    "FAV_JARA": [
+      "Jfa1) Opinión muy favorable de Jeannette Jara",
+      "Jfa2) Opinión algo favorable de Jeannette Jara",
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Jara",
+      "Jfa3) Opinión algo desfavorable de Jeannette Jara",
+      "Jfa4) Opinión muy desfavorable de Jeannette Jara",
+      "Jfa5) Desconozco quién es Jeannette Jara"
+    ],
+    "FAV_MATTHEI": [
+      "Efa5) Desconozco quién es Evelyn Matthei",
+      "Efa2) Opinión algo favorable de Evelyn Matthei",
+      "Efa1) Opinión muy favorable de Evelyn Matthei",
+      "Efa3) Opinión algo desfavorable de Evelyn Matthei",
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Matthei",
+      "Efa4) Opinión muy desfavorable de Evelyn Matthei"
+    ],
+    "FAV_PARISI": [
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Parisi",
+      "Pfa3) Opinión algo desfavorable de Franco Parisi",
+      "Pfa5) Desconozco quién es Franco Parisi",
+      "Pfa4) Opinión muy desfavorable de Franco Parisi",
+      "Pfa2) Opinión algo favorable de Franco Parisi",
+      "Pfa1) Opinión muy favorable de Franco Parisi"
+    ],
+    "FAV_MEO": [
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a MEO",
+      "Mfa4) Opinión muy desfavorable de Marco Enríquez-Ominami",
+      "Mfa5) Desconozco quién es Marco Enríquez-Ominami",
+      "Mfa3) Opinión algo desfavorable de Marco Enríquez-Ominami",
+      "Mfa1) Opinión muy favorable de Marco Enríquez-Ominami",
+      "Mfa2) Opinión algo favorable de Marco Enríquez-Ominami"
+    ],
+    "FAV_ARTES": [
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Artés",
+      "Afa1) Opinión muy favorable de Eduardo Artés",
+      "Afa3) Opinión algo desfavorable de Eduardo Artés",
+      "Afa2) Opinión algo favorable de Eduardo Artés",
+      "Afa4) Opinión muy desfavorable de Eduardo Artés",
+      "Afa5) Desconozco quién es Eduardo Artés"
+    ],
+    "FAV_KAISER": [
+      "JKfa1) Opinión muy favorable de Johannes Kaiser",
+      "CI) CANNOT_INFER — sin evidencia sobre la opinión respecto a Kaiser",
+      "JKfa5) Desconozco quién es Johannes Kaiser",
+      "JKfa2) Opinión algo favorable de Johannes Kaiser",
+      "JKfa3) Opinión algo desfavorable de Johannes Kaiser",
+      "JKfa4) Opinión muy desfavorable de Johannes Kaiser"
+    ],
+    "MAS_IMPORTANTE": [
+      "Moi07) Educación",
+      "Moi02) Desempleo",
+      "CI) CANNOT_INFER — sin evidencia sobre el tema prioritario",
+      "Moi09) Desigualdad de ingresos",
+      "Moi03) Corrupción",
+      "Moi05) Delincuencia / seguridad pública",
+      "Moi04) Problemas políticos",
+      "Moi01) Economía",
+      "Moi06) Pobreza",
+      "Moi08) Salud"
+    ]
+  }
+}
