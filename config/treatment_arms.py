@@ -59,17 +59,33 @@ def _arm_a_voting_patterns() -> list:
 
 
 def _arm_d_patterns() -> list:
-    """Build Arm D regex patterns from its canonical question labels.
+    r"""Build Arm D regex patterns from its canonical question labels.
 
-    Arm D emits ``**question: <CANONICAL_LABEL>**`` blocks with symbol,
-    category, speculation and explanation fields, parsed into
-    ``"<LABEL> - <field>"`` columns.
+    Arm D emits ``**question: <CANONICAL_LABEL>**`` / ``**response: <free
+    text or CI>**`` blocks -- free-text elicitation only, no symbol/category/
+    speculation/explanation fields -- parsed into ``"<LABEL> - response"``
+    columns. Coding the free text into the canonical symbol space happens
+    downstream in R, not in this pipeline.
+
+    2026-07-30 fix: the pattern used to be ``rf"^{escaped}.*\-\s*response$"``
+    -- the ``.*`` after the label let it match any OTHER label that starts
+    with this one, not just this exact label. Confirmed as a real bug, not
+    theoretical: adding ``INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA`` (a
+    superset of the existing ``INDV_INTENCION_VOTO_2025``) made
+    ``coalesce_columns_by_regex`` treat the two questions' "- response"
+    columns as duplicates of the same pattern and silently drop one via
+    ``bfill`` + column-drop, on an actual pilot run
+    (``data/digital-twin-chile-x/pilot_with_profile_info_without_web_search_arm_d/``).
+    ``ARM_D_QUESTION_LABELS`` has no other prefix collisions today (checked
+    programmatically), so this was previously latent, not previously
+    triggered. Fixed by anchoring the pattern to end right after the label
+    (only optional whitespace before the literal "- response"), so it can
+    no longer match a longer label that happens to start with this one.
     """
     patterns = []
     for label in arm_d_prompts.ARM_D_QUESTION_LABELS:
         escaped = re.escape(label)
-        for field in ("symbol", "category", "speculation", "explanation"):
-            patterns.append(rf"^{escaped}.*\-\s*{field}$")
+        patterns.append(rf"^{escaped}\s*\-\s*response$")
     return patterns
 
 
