@@ -29,6 +29,8 @@ from src.utils import (
     perform_profile_interview,
     coalesce_columns_by_regex,
 )
+from prompts.prompt_template_arm_c import SHUFFLEABLE_KEYS
+from prompts.prompt_template_arm_d import ARM_D_QUESTION_LABELS
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 LOCAL_PROFILE_METADATA_FILE = os.path.join(
@@ -210,7 +212,7 @@ def conduct_single_call_interview(
     )
     extracted_responses = post_interview_results[
         "x_digital_twin_arm_d_llm_response"
-    ].apply(extract_llm_responses)
+    ].apply(extract_llm_responses, canonical_labels=ARM_D_QUESTION_LABELS)
     post_interview_results = pd.concat(
         [post_interview_results, extracted_responses], axis=1
     )
@@ -240,6 +242,9 @@ def conduct_two_stage_json_interview(
     treatment_arm: str,
     include_profile_info: bool = True,
     enable_web_search: bool = True,
+    shuffle_scope: str = "nominal",
+    shuffle_keys: "list[str] | None" = None,
+    randomization_seed_suffix: str = "",
 ) -> None:
     """Two-stage evidence-extraction then prediction interview (Arms B and C).
 
@@ -250,7 +255,32 @@ def conduct_two_stage_json_interview(
     Stage 2 inherits the ``enable_web_search`` setting. The evidence-only design
     argues for running Stage 2 without web search; pass --no-enable-web-search to
     keep predictions strictly grounded in the Stage 1 evidence sheet.
+
+    ``shuffle_scope`` and ``shuffle_keys`` are only meaningful for Arm C.
+    ``shuffle_scope``: "nominal" (default) shuffles only nominal-scale
+    questions; "all" also shuffles ordinal scales. ``shuffle_keys``, if given,
+    overrides ``shuffle_scope`` entirely and shuffles exactly the named
+    questions (any subset of Arm C's ``SHUFFLEABLE_KEYS``, which includes
+    "COMUNA" — otherwise always canonical order regardless of scope).
+
+    ``randomization_seed_suffix`` (Arm C only) is appended to the per-question
+    shuffle seed, so re-running with a different suffix (e.g. "_v2", "_v3")
+    reshuffles independently for sensitivity/ordering-diagnostic runs, and is
+    also appended to the randomization log filename and the Stage 2 output
+    filename so repeated-seed runs don't overwrite each other's audit trail
+    or predictions.
+
+    The standalone Stage 1 CSV is deleted once Stage 2 finishes: Stage 2's
+    output carries every Stage 1 column forward (it's read back in as Stage
+    2's own "profile metadata"), so keeping both as final artifacts is a
+    duplicate with nothing gained from the second copy.
     """
+    if randomization_seed_suffix:
+        # Vary the Stage 2 output filename by seed so repeated-seed
+        # sensitivity runs don't clobber each other's predictions.
+        root, ext = os.path.splitext(stage2_output_file)
+        stage2_output_file = f"{root}{randomization_seed_suffix}{ext}"
+
     # ---- Stage 1: evidence extraction ----
     perform_profile_interview(
         project_name=project_name,
@@ -276,7 +306,7 @@ def conduct_two_stage_json_interview(
 
     stage2_builder = arm_cfg.get("stage2_user_builder")
     log_dir = os.path.join(
-        base_dir, "../data", project_name, execution_date, "randomisation_logs"
+        base_dir, "../data", project_name, execution_date, "randomization_logs"
     )
     if stage2_builder is not None:
         os.makedirs(log_dir, exist_ok=True)
@@ -289,9 +319,19 @@ def conduct_two_stage_json_interview(
         if stage2_builder is not None:
             # Arm C: randomise option order per subject and log the ordering.
             subject_id = str(row.get("account_id", row.get("custom_id", "")))
-            save_log_path = os.path.join(log_dir, f"{subject_id}.json")
+            save_log_path = os.path.join(
+                log_dir,
+                f"randomization_log_{subject_id}{randomization_seed_suffix}.json",
+            )
             stage2_user_prompts.append(
-                stage2_builder(evidence, subject_id, save_log_path=save_log_path)
+                stage2_builder(
+                    evidence,
+                    subject_id,
+                    randomization_seed_suffix=randomization_seed_suffix,
+                    save_log_path=save_log_path,
+                    shuffle_scope=shuffle_scope,
+                    shuffle_keys=shuffle_keys,
+                )
             )
         else:
             # Arm B: inject the evidence sheet into the static Stage 2 prompt.
@@ -336,6 +376,11 @@ def conduct_two_stage_json_interview(
 
     stage2_df.to_csv(stage2_path, index=False)
 
+    # Stage 2's file now carries every Stage 1 column forward (evidence JSON,
+    # profile fields, the built Stage 2 user prompt) plus its own predictions,
+    # so the standalone Stage 1 CSV is a duplicate final artifact. Drop it.
+    os.remove(stage1_path)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -374,6 +419,43 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Skip Step 1 (profile metadata/post search) and reuse the data "
             "already present in this arm's output folder."
+        ),
+    )
+    parser.add_argument(
+        "--shuffle-scope",
+        choices=["nominal", "all"],
+        default="nominal",
+        help=(
+            "Arm C only: which Stage 2 option lists to randomise. "
+            "'nominal' (default) shuffles only nominal-scale questions; "
+            "'all' also shuffles ordinal scales. Ignored by arms other than "
+            "'c', and ignored if --shuffle-keys is given. (default: %(default)s)"
+        ),
+    )
+    parser.add_argument(
+        "--shuffle-keys",
+        default=None,
+        help=(
+            "Arm C only: comma-separated list of exact question keys to "
+            "shuffle (e.g. 'REGION,COMUNA,SEXO'), overriding --shuffle-scope "
+            "entirely. Accepts any of Arm C's SHUFFLEABLE_KEYS, including "
+            "'COMUNA' (otherwise always canonical order regardless of "
+            "scope). Pass the literal value 'all' to shuffle every "
+            "SHUFFLEABLE_KEYS question (the split-sample 'shuffle "
+            "everything' diagnostic). Omit to use --shuffle-scope instead."
+        ),
+    )
+    parser.add_argument(
+        "--seed-suffix",
+        default="",
+        help=(
+            "Arm C only: appended to the per-question shuffle seed "
+            "(f'{subject_id}_{key}{seed_suffix}'), so a different suffix "
+            "(e.g. '_v2', '_v3') reshuffles independently for repeated-seed "
+            "sensitivity/ordering-diagnostic runs. Also appended to the "
+            "randomization log filename and the Stage 2 predictions filename "
+            "so repeated runs don't overwrite each other. Empty (default) "
+            "reproduces the baseline seed."
         ),
     )
     return parser.parse_args()
@@ -484,7 +566,21 @@ if __name__ == "__main__":
         stage1_output_file = f"post_stage1_evidence_{execution_date}.csv"
         stage2_output_file = f"post_stage2_predictions_{execution_date}.csv"
 
+        if args.shuffle_keys is None:
+            shuffle_keys = None
+        elif args.shuffle_keys.strip().lower() == "all":
+            shuffle_keys = sorted(SHUFFLEABLE_KEYS)
+        else:
+            shuffle_keys = [k.strip() for k in args.shuffle_keys.split(",") if k.strip()]
+
         print("Step 2: Two-stage JSON interview (evidence extraction + prediction).")
+        if treatment_arm == "c":
+            if shuffle_keys is not None:
+                print(f"Shuffle keys         : {shuffle_keys}")
+            else:
+                print(f"Shuffle scope        : {args.shuffle_scope}")
+            if args.seed_suffix:
+                print(f"Seed suffix          : {args.seed_suffix}")
         conduct_two_stage_json_interview(
             project_name=PROJECT_NAME,
             execution_date=execution_date,
@@ -496,6 +592,9 @@ if __name__ == "__main__":
             treatment_arm=treatment_arm,
             include_profile_info=include_profile_info,
             enable_web_search=enable_web_search,
+            shuffle_scope=args.shuffle_scope,
+            shuffle_keys=shuffle_keys,
+            randomization_seed_suffix=args.seed_suffix,
         )
 
     else:

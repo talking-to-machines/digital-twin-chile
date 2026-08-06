@@ -1,31 +1,20 @@
 """
-Arm D — Minimal Sparse Prompt Template
+Arm D — Minimal Sparse Prompt Template (free-text, post-hoc mapping)
 AIPOP Chile — Digital Interview Pipeline
 
-Architecture: single-stage, sparse.
-  One LLM call per subject. The model receives the full social media profile and
-  a compact code scheme (prefix ranges only, no full category descriptions).
-  It returns one structured **field: value** block per target construct.
+Rebuilt 2026-07-27 to match admin/pretesting-strategy_2.md section 2, which
+specifies Arm D as: "Provides the social media data but with minimal
+instructions. No explicit response categories — free-text output mapped to
+categories post hoc." The previous implementation supplied compressed code
+ranges (e.g. PARTIDO_POLITICO [PP1–PP15]), which is a different design: the
+model still saw a code space per question. See QA report 06
+(scripts/analysis/06_pilot_comparison_smoke_test_qa_matias.Rmd),
+recommendation 12, and the pinned Asana task "Prompt Engineering Guide —
+amendments and arm compliance".
 
-Sparse philosophy preserved relative to Arms A/B/C:
-  - No full category description lists per question.
-  - No explicit inference guidelines (no REGLA DE INFERENCIA CONSERVADORA).
-  - No format-correction rules (no REGLA DE FORMATO CRÍTICA).
-  - No speculation calibration guidelines.
-  - System prompt is minimal (5 lines).
-  - The model maps codes naturally without anchoring to dense descriptions.
-
-Output format (same **field: value** structure as Arm A):
-  **question: <CANONICAL_VAR_NAME>**
-  **symbol: <código o CI>**
-  **category: <descripción del símbolo elegido>**
-  **explanation: <justificación breve>**
-  **speculation: <0-100>**
-
-  "CI" = CANNOT_INFER (equivalent to Arms B/C CI; maps to NAD in analysis dataset).
-
-Pipeline calls:
-  Call 1:
+Architecture: one call.
+  Call 1 (elicitation — the sparse arm proper, and the only LLM call the
+      Python pipeline makes for this arm):
       system = arm_d_system_prompt
       user   = arm_d_user_prompt   (fill {platform}, {name}, {account_id},
                                    {location}, {description}, {url},
@@ -35,19 +24,69 @@ Pipeline calls:
                                    {statuses_count}, {favourites_count},
                                    {media_count}, {tweets},
                                    {profile_picture})
+      The model answers each question in FREE TEXT (or "CI"), plus a
+      speculation score (0-100) per question. pretesting-strategy_2.md
+      Criterion 4 scopes the speculation-*calibration analysis* to Arms
+      A/B/C but never excludes Arm D from producing the score itself; QA
+      report 06 recommendation #11 treats Arm D's spec-compliance as an
+      open decision, not a settled exclusion. Still no codes, no option
+      lists -- only the response and speculation lines are added.
 
-Output parsing:
-  Same regex-based **field: value** parser as Arm A.
-  ARM_D_QUESTION_LABELS (canonical var names in prompt order) drives extraction.
-  ARM_D_CANONICAL_MAP documents code spaces and Arm A field correspondence.
+  Post-hoc mapping (mechanical coding, NOT part of the sparse manipulation,
+      and NOT an LLM call): deliberately moved out of the Python pipeline and
+      into R (scripts/build/), as deterministic keyword/regex matching
+      against Call 1's free text -- no second LLM call, so no extra tokens,
+      and the platform stays limited to interviewing. arm_d_mapping_system_prompt
+      / arm_d_mapping_user_prompt_template below are kept only as a reference
+      for the target code space per question (same option lists an R-side
+      coder needs) -- they are not invoked by any driver code. Expect lower
+      coding coverage/accuracy on the judgment-heavy questions (the seven
+      FAVORABILIDAD_* items, TEMA_MAS_IMPORTANTE, and free-form income/age
+      phrasing) than an LLM-based coder would give; that trade-off was a
+      deliberate choice to avoid both extra tokens and in-platform cleaning.
 
-Communal questions excluded: municipality-anchored variants require a structured
-geographic lookup workflow incompatible with the sparse philosophy.
+Output format, Call 1 (one block of THREE lines per question):
+  **question: <NOMBRE_PREGUNTA>**
+  **response: <texto libre o CI>**
+  **speculation: <puntuación 0-100>**
+
+  "CI" = CANNOT_INFER (equivalent to Arms A/B/C; maps to NAD in the analysis
+  dataset). Tag is "response" (English), not "respuesta", to reuse
+  src/utils.py::extract_llm_responses()'s existing response_pattern and match
+  every other arm's convention of English field tags in a Spanish-language
+  prompt (question/symbol/category/explanation/speculation).
+
+2026-07-27 content revisions shared with the other arms:
+  - PP16 (Movimiento Amarillos Por Chile) added to the party code space; the
+    fielded Q3.1 offers it. "No me identifico con un partido" remains
+    unmapped (open team decision).
+  - COMUNA is coded into the same COMU1-COMU346 space as Arms A/B/C. The
+    free-text ELICITATION never sees codes (spec-compliant); the post-hoc
+    MAPPER receives the full comuna list (imported from arm_b's programmatic
+    extraction of Arm A's list) and assigns the COMU code, exactly as it does
+    for every other question.
+
+Communal (_COMUNAL) questions remain excluded, as in every arm: municipal
+electoral data is an INPUT under information condition 4 (guide section 9.4),
+not a block of output questions.
+
+2026-07-29: added the speculation line to Call 1 (see above) so Arm D can be
+scored on CI-speculation consistency for the architecture-pilot eligibility
+rule (tracker item 6) and included in H5. Probability-distribution output
+(the AI-RCT/Brier harmonization item) is deliberately NOT added here --
+unlike speculation, it requires exposing each outcome's option list to the
+model, which is a further departure from the sparse design; holding off
+pending a separate decision.
 """
 
 import os
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Comuna code list — Arm A's, via arm_b's programmatic extraction, so all arms
+# code COMUNA into the identical COMU1-COMU346 space. Used ONLY by the post-hoc
+# mapper below; the sparse elicitation prompt never sees it.
+from prompts.prompt_template_arm_b import comuna_option_list
 
 # ─── Tweet formatter (shared) ─────────────────────────────────────────────────
 
@@ -63,15 +102,25 @@ Language: {lang}
 Tagged Users: {tagged_users}
 Hashtags: {hashtags}"""
 
-# ─── System Prompt ────────────────────────────────────────────────────────────
+# ─── Call 1 — Sparse free-text elicitation ────────────────────────────────────
 
 arm_d_system_prompt = """Usted está analizando un perfil de X (Twitter) de un usuario chileno.
 Prediga cómo respondería esta persona a las preguntas de una encuesta política chilena.
-Use únicamente la información disponible en el perfil. Sea conciso.
-Para cada pregunta, produzca exactamente cinco líneas: question, symbol, category, explanation, speculation.
-Use "CI" como símbolo cuando el perfil no proporcione información suficiente para predecir."""
+Use únicamente la información disponible en el perfil. Responda en texto libre, breve y natural,
+incluyendo siempre una breve justificación de su respuesta dentro de response (excepto cuando la
+instrucción de la pregunta indique responder exactamente "NA", en cuyo caso no agregue nada más).
+Para cada pregunta, produzca exactamente tres líneas: question, response y speculation. Debe
+responder TODAS las preguntas de la lista, sin omitir ninguna, incluso si la respuesta es CI.
+Escriba "CI" como respuesta cuando el perfil no proporcione información suficiente para predecir.
+En speculation, indique con un puntaje de 0 a 100 cuánto especuló para llegar a su respuesta
+(0 = evidencia directa en el perfil, 100 = conjetura pura sin evidencia).
 
-# ─── User Prompt ─────────────────────────────────────────────────────────────
+Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio
+y al final. Cada línea debe comenzar con el nombre del campo tal como en el ejemplo, seguido
+de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales. Ejemplo:
+**question: EDAD**
+**response: 25 a 34 años**
+**speculation: 30**"""
 
 arm_d_user_prompt = """A continuación se presenta el perfil de X de un usuario chileno.
 
@@ -98,54 +147,54 @@ Los datos del perfil de {platform} incluyen:
 === FIN DEL PERFIL ===
 
 Para cada pregunta de la lista a continuación, produzca exactamente el siguiente bloque:
-**question: <nombre_pregunta>**
-**symbol: <código seleccionado o CI>**
-**category: <descripción del símbolo elegido>**
-**explanation: <justificación breve basada en el perfil>**
-**speculation: <puntuación 0–100>**
+**question: <NOMBRE_PREGUNTA>**
+**response: <su respuesta en texto libre, o CI>**
+**speculation: <puntaje 0-100 de cuánto especuló para responder>**
 
-Códigos válidos por pregunta (use "CI" si la evidencia es insuficiente):
-PERSONA_REAL [RP1=Persona real, RP2=Otro]
-PERSONA_VIVE_CHILE [PLC1=Sí, PLC2=No]
-REGION [REG1–REG17]
-COMUNA [COMU1–COMU346]
-EDAD [AG1=<18, AG2=18-24, AG3=25-34, AG4=35-44, AG5=45-54, AG6=55-64, AG7=65+]
-SEXO [S1=Masculino, S2=Femenino]
-RANGO_INGRESOS_PERSONALES [PINC1–PINC17]
-RANGO_INGRESOS_HOGAR [HINC1–HINC17]
-ESTADO_CIVIL [MAR1–MAR5]
-CALIFICACION_EDUCATIVA [EDU1–EDU14]
-OCUPACION_ACTUAL [OCCUP1–OCCUP8]
-ORIENTACION_IDEOLOGICA [IoPoR1=izquierda … IoPoR10=derecha]
-PARTIDO_POLITICO [PP1–PP15]
-AFINIDAD_PARTIDO [1–7]
-INTERES_POLITICA [INTP1–INTP4]
-ATENCION_CAMPANA_2025 [ATT25_1–ATT25_4]
-ATENCION_CAMPANA_2021 [ATT21_1–ATT21_4]
-CONFIANZA_GENERAL [TRUS1–TRUS5]
-PARTICIPACION_PRESIDENCIAL_2021 [Thpa1–Thpa7]
-VOTO_PRESIDENCIAL_2021 [Vpa1–Vpa8]
-INDV_PARTICIPACION_LEGISLATIVA_2021 [Tpaindv1–Tpaindv7]
-INDV_VOTO_LEGISLATIVO_2021 [Vpaindv1–Vpaindv12]
-INDV_PARTICIPACION_2025 [Tcuindv1–Tcuindv7]
-INDV_INTENCION_VOTO_2025 [Vcuindv1–Vcuindv8]
-INTENCION_VOTO_2025_FECHA_TWEET [Vcu1–Vcu8]
-INDECISION_2025 [Und1–Und7]
-FAVORABILIDAD_KAST [Kfa1–Kfa5]
-FAVORABILIDAD_JARA [Jfa1–Jfa5]
-FAVORABILIDAD_MATTHEI [Efa1–Efa5]
-FAVORABILIDAD_PARISI [Pfa1–Pfa5]
-FAVORABILIDAD_MEO [Mfa1–Mfa5]
-FAVORABILIDAD_ARTES [Afa1–Afa5]
-FAVORABILIDAD_KAISER [JKfa1–JKfa5]
-TEMA_MAS_IMPORTANTE [Moi01–Moi09]
+Preguntas:
+PERSONA_REAL — ¿Es esta cuenta una persona real (no un bot, organización ni cuenta ficticia)?
+PERSONA_VIVE_CHILE — ¿Vive esta persona en Chile?
+REGION — ¿En qué región de Chile vive? (si la persona no vive en Chile, responda exactamente "NA"; si vive en Chile pero no hay evidencia suficiente para determinar la región, responda "CI")
+COMUNA — ¿En qué comuna vive? (si la persona no vive en Chile, responda exactamente "NA"; si vive en Chile pero no hay evidencia suficiente para determinar la comuna, responda "CI")
+EDAD — ¿Cuál es su edad?
+SEXO — ¿Cuál es su género?
+RANGO_INGRESOS_PERSONALES — ¿Cuál es su ingreso individual mensual aproximado, en pesos chilenos?
+RANGO_INGRESOS_HOGAR — ¿Cuál es el ingreso mensual total aproximado de su hogar, en pesos chilenos?
+ESTADO_CIVIL — ¿Cuál es su estado civil?
+CALIFICACION_EDUCATIVA — ¿Cuál es su mayor nivel educacional?
+OCUPACION_ACTUAL — ¿Cuál es su ocupación principal?
+ORIENTACION_IDEOLOGICA — En una escala de 1 (Izquierda) a 10 (Derecha), ¿dónde se ubicaría políticamente?
+PARTIDO_POLITICO — Generalmente, ¿con qué partido político chileno simpatiza?
+AFINIDAD_PARTIDO — En una escala de 1 (ninguna simpatía) a 7 (mucha simpatía), ¿qué grado de afinidad siente por el partido que eligió?
+INTERES_POLITICA — ¿Qué tanto le interesa la política en términos generales?
+ATENCION_CAMPANA_2025 — ¿Cuánta atención prestó a la campaña para las elecciones generales de 2025?
+ATENCION_CAMPANA_2021 — ¿Cuánta atención prestó a la campaña para las elecciones generales de 2021?
+CONFIANZA_GENERAL — ¿Cree que se puede confiar en la mayoría de las personas, o que hay que ser muy cuidadoso?
+PARTICIPACION_PRESIDENCIAL_2021 — ¿Votó esta persona en las elecciones presidenciales de 2021?
+VOTO_PRESIDENCIAL_2021 — ¿Por quién votó en las elecciones presidenciales de 2021?
+INDV_PARTICIPACION_LEGISLATIVA_2021 — ¿Votó en las elecciones legislativas de 2021?
+INDV_VOTO_LEGISLATIVO_2021 — ¿Por qué partido o lista votó en las elecciones legislativas de 2021?
+INDV_PARTICIPACION_2025 — ¿Votará en las elecciones presidenciales de 2025?
+INDV_INTENCION_VOTO_2025 — ¿Por quién votaría en las elecciones presidenciales de 2025?
+INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA — Ahora le preguntaremos sobre la segunda vuelta de las elecciones presidenciales, que se realizará el próximo domingo 14 de diciembre de 2025. Si las elecciones presidenciales fueran hoy, ¿por cuál de los siguientes candidatos votaría: Jeannette Jara o José Antonio Kast? (o si votaría nulo/blanco, no votaría, o no está seguro/a)
+INDECISION_2025 — ¿Qué tan probable es que cambie su intención de voto antes de las elecciones de 2025?
+FAVORABILIDAD_KAST — ¿Qué opinión tiene de José Antonio Kast?
+FAVORABILIDAD_JARA — ¿Qué opinión tiene de Jeannette Jara?
+FAVORABILIDAD_MATTHEI — ¿Qué opinión tiene de Evelyn Matthei?
+FAVORABILIDAD_PARISI — ¿Qué opinión tiene de Franco Parisi?
+FAVORABILIDAD_MEO — ¿Qué opinión tiene de Marco Enríquez-Ominami?
+FAVORABILIDAD_ARTES — ¿Qué opinión tiene de Eduardo Artés?
+FAVORABILIDAD_KAISER — ¿Qué opinión tiene de Johannes Kaiser?
+TEMA_MAS_IMPORTANTE — ¿Cuál cree que es el problema más importante que enfrenta el país hoy en día?
 
-¡Produzca un bloque de cinco líneas por pregunta, en el orden indicado!"""
+¡USTED DEBE RESPONDER TODAS LAS PREGUNTAS DE LA LISTA, SIN OMITIR NINGUNA! Produzca un bloque de
+tres líneas por pregunta, cada línea entre dos asteriscos (**question: ...**, **response: ...**,
+**speculation: ...**), en el orden indicado!"""
 
 # ─── Question labels (canonical var names, in prompt order) ──────────────────
 #
-# Drive the **field: value** parser: scan the model output for
-# **question: <label>** and extract the subsequent symbol/category/etc. fields.
+# Drive the **field: value** parser for Call 1: scan the model output for
+# **question: <label>** and extract the following "response" field.
 
 ARM_D_QUESTION_LABELS = [
     "PERSONA_REAL",
@@ -172,7 +221,7 @@ ARM_D_QUESTION_LABELS = [
     "INDV_VOTO_LEGISLATIVO_2021",
     "INDV_PARTICIPACION_2025",
     "INDV_INTENCION_VOTO_2025",
-    "INTENCION_VOTO_2025_FECHA_TWEET",
+    "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA",
     "INDECISION_2025",
     "FAVORABILIDAD_KAST",
     "FAVORABILIDAD_JARA",
@@ -184,13 +233,15 @@ ARM_D_QUESTION_LABELS = [
     "TEMA_MAS_IMPORTANTE",
 ]
 
-# Canonical NAD marker (symbol value when evidence is insufficient).
+# Canonical NAD marker (answer value when evidence is insufficient).
 ARM_D_NO_DATA_MARKER = "CI"
 
 # ─── Canonical variable map ───────────────────────────────────────────────────
 #
 # Maps each ARM_D_QUESTION_LABELS entry to its code space and Arm A question
-# label. Used by the post-run analysis pipeline for cross-arm alignment.
+# label. Documents the target code space the post-hoc mapping call codes into
+# (the full option labels live in arm_d_mapping_user_prompt_template below),
+# and supports cross-arm alignment in the analysis pipeline.
 
 ARM_D_CANONICAL_MAP = {
     "PERSONA_REAL": {
@@ -206,7 +257,7 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "REGIÓN",
     },
     "COMUNA": {
-        "code_space": "COMU1-COMU346",
+        "code_space": "COMU1-COMU346 (lista completa en el prompt del mapper)",
         "arm_a_field": "COMUNA",
     },
     "EDAD": {
@@ -242,11 +293,11 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "ORIENTACIÓN IDEOLÓGICA O POLÍTICA",
     },
     "PARTIDO_POLITICO": {
-        "code_space": "PP1=Republicano, PP2=RN, PP3=FA, PP4=PC, PP5=PS, PP6=DC, PP7=UDI, PP8=PPD, PP9=PDG, PP10=Liberal, PP11=Demócratas Chile, PP12=EVOPOLI, PP13=Social Cristiano, PP14=Radical, PP15=FRVS",
+        "code_space": "PP1=Republicano, PP2=RN, PP3=FA, PP4=PC, PP5=PS, PP6=DC, PP7=UDI, PP8=PPD, PP9=PDG, PP10=Liberal, PP11=Demócratas Chile, PP12=EVOPOLI, PP13=Social Cristiano, PP14=Radical, PP15=FRVS, PP16=Amarillos",
         "arm_a_field": "PARTIDO POLÍTICO",
     },
     "AFINIDAD_PARTIDO": {
-        "code_space": "1-7 (escala numérica)",
+        "code_space": "Afi1-Afi7 (Afi1=ninguna simpatía, Afi7=mucha simpatía)",
         "arm_a_field": "AFINIDAD CON PARTIDO POLÍTICO",
     },
     "INTERES_POLITICA": {
@@ -289,9 +340,9 @@ ARM_D_CANONICAL_MAP = {
         "code_space": "Vcuindv1=no votaría, Vcuindv2=Jara, Vcuindv3=Kast, Vcuindv4=Matthei, Vcuindv5=Kaiser, Vcuindv6=Parisi, Vcuindv7=MEO, Vcuindv8=Artés",
         "arm_a_field": "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025",
     },
-    "INTENCION_VOTO_2025_FECHA_TWEET": {
-        "code_space": "Vcu1=no votaría, Vcu2=Kast, Vcu3=Jara, Vcu4=Matthei, Vcu5=Kaiser, Vcu6=Parisi, Vcu7=MEO, Vcu8=Artés",
-        "arm_a_field": "PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT",
+    "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA": {
+        "code_space": "Vsv1=Jara, Vsv2=Kast, Vsv3=nulo/blanco, Vsv4=no votaría, Vsv5=no está seguro(a)",
+        "arm_a_field": "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025",
     },
     "INDECISION_2025": {
         "code_space": "Und1(prob=0) … Und7(prob=1)",
@@ -330,3 +381,79 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "CREENCIA SOBRE EL TEMA MÁS IMPORTANTE ACTUALMENTE",
     },
 }
+
+# ─── Call 2 — Post-hoc mapping (mechanical coding) ───────────────────────────
+#
+# This is NOT part of the sparse manipulation. The respondent-facing prompt
+# above never shows codes or option lists; this second call codes the
+# free-text answers into the canonical code space, exactly as a human coder
+# would. Full option lists are appropriate here — the mapper is mechanical,
+# and richness cannot contaminate the elicitation, which already happened.
+# Output uses the Arm B JSON envelope so extract_json_predictions() works
+# unchanged.
+
+arm_d_mapping_system_prompt = """Usted es un codificador mecánico de respuestas de encuesta. Recibirá las respuestas en texto libre de un cuestionario y debe asignar a cada una el código de la opción que mejor corresponda, según las listas de opciones proporcionadas.
+
+REGLAS ESTRICTAS:
+1. Codifique ÚNICAMENTE a partir del texto libre de cada respuesta. No re-infiera desde ninguna otra fuente ni "mejore" la respuesta.
+2. Si la respuesta es "CI", vacía, o no corresponde a ninguna opción, asigne el símbolo "CI" y la categoría "CANNOT_INFER".
+3. El campo symbol debe contener ÚNICAMENTE el código (ej. AG3, PP7, CI). El campo category debe contener ÚNICAMENTE la etiqueta de la opción elegida. Nunca mezcle código y etiqueta en un mismo campo.
+4. En explanation, cite el fragmento del texto libre que justifica el código asignado (máx. 1 frase).
+5. Para COMUNA, seleccione el código COMU de la lista completa de comunas al final del prompt (o CI si la respuesta no corresponde a ninguna comuna).
+6. El output DEBE ser un JSON válido con la estructura indicada. No incluya texto fuera del JSON."""
+
+arm_d_mapping_user_prompt_template = """Cuenta analizada: {account_id}
+
+=== RESPUESTAS EN TEXTO LIBRE (Call 1) ===
+{free_text_answers}
+=== FIN DE RESPUESTAS ===
+
+Codifique cada respuesta con la opción que mejor corresponda y devuelva ÚNICAMENTE un objeto JSON válido con esta estructura:
+
+{{
+  "subject_id": "{account_id}",
+  "pipeline_stage": "d_mapping",
+  "predictions": {{
+    "EDAD": {{"question": "EDAD", "symbol": "<código o CI>", "category": "<etiqueta de la opción>", "explanation": "<fragmento del texto libre que lo justifica>"}},
+    "...": "... una entrada con la misma estructura por CADA pregunta listada abajo ..."
+  }}
+}}
+
+Listas de opciones por pregunta:
+
+PERSONA_REAL: RP1) Persona real | RP2) Otro (bot, organización, cuenta ficticia)
+PERSONA_VIVE_CHILE: PLC1) Sí | PLC2) No
+REGION: REG1) Antofagasta | REG2) Arica y Parinacota | REG3) Atacama | REG4) Aysén | REG5) Coquimbo | REG6) Araucanía | REG7) Los Lagos | REG8) Los Ríos | REG9) Magallanes | REG10) Tarapacá | REG11) Valparaíso | REG12) Ñuble | REG13) Biobío | REG14) O'Higgins | REG15) Maule | REG16) Metropolitana de Santiago | REG17) NA — no vive en Chile o región desconocida
+COMUNA: seleccione el código COMU de la lista completa al final del prompt, o CI
+EDAD: AG1) Menor de 18 años | AG2) De 18 a 24 años | AG3) De 25 a 34 años | AG4) De 35 a 44 años | AG5) De 45 a 54 años | AG6) De 55 a 64 años | AG7) 65 años o más
+SEXO: S1) Masculino | S2) Femenino
+RANGO_INGRESOS_PERSONALES: PINC1) $0-$35.000 | PINC2) $35.001-$60.000 | PINC3) $60.001-$100.000 | PINC4) $100.001-$200.000 | PINC5) $200.001-$350.000 | PINC6) $350.001-$500.000 | PINC7) $500.001-$750.000 | PINC8) $750.001-$1.000.000 | PINC9) $1.000.001-$1.500.000 | PINC10) $1.500.001-$2.000.000 | PINC11) $2.000.001-$3.000.000 | PINC12) $3.000.001-$5.000.000 | PINC13) $5.000.001-$7.500.000 | PINC14) $7.500.001-$10.000.000 | PINC15) $10.000.001-$15.000.000 | PINC16) $15.000.001-$20.000.000 | PINC17) Más de $20.000.000
+RANGO_INGRESOS_HOGAR: HINC1) $0-$35.000 | HINC2) $35.001-$60.000 | HINC3) $60.001-$100.000 | HINC4) $100.001-$200.000 | HINC5) $200.001-$350.000 | HINC6) $350.001-$500.000 | HINC7) $500.001-$750.000 | HINC8) $750.001-$1.000.000 | HINC9) $1.000.001-$1.500.000 | HINC10) $1.500.001-$2.000.000 | HINC11) $2.000.001-$3.000.000 | HINC12) $3.000.001-$5.000.000 | HINC13) $5.000.001-$7.500.000 | HINC14) $7.500.001-$10.000.000 | HINC15) $10.000.001-$15.000.000 | HINC16) $15.000.001-$20.000.000 | HINC17) Más de $20.000.000
+ESTADO_CIVIL: MAR1) Casado(a) | MAR2) Separado(a) | MAR3) Soltero(a) | MAR4) Divorciado(a) | MAR5) Viudo(a)
+CALIFICACION_EDUCATIVA: EDU1) Sala Cuna o Jardín Infantil | EDU2) PreKinder | EDU3) Kinder | EDU4) Especial o Diferencial | EDU5) Primaria o Preparatoria (sistema antiguo) | EDU6) Educación Básica | EDU7) Científico-Humanista | EDU8) Técnica Profesional | EDU9) Humanidades (sistema antiguo) | EDU10) Técnico Nivel Superior (carreras 1-4 años) | EDU11) Profesional (carreras 1-6 años) | EDU12) Magíster | EDU13) Doctorado | EDU14) Nunca asistió
+OCUPACION_ACTUAL: OCCUP1) Patrón o dueño de empresa o negocio | OCCUP2) Trabajador por cuenta propia | OCCUP3) Empleado u obrero del sector público | OCCUP4) Empleado u obrero de empresas públicas | OCCUP5) Empleado u obrero del sector privado | OCCUP6) Fuerzas Armadas, de Orden y Seguridad | OCCUP7) Servicio doméstico puertas adentro | OCCUP8) Servicio doméstico puertas afuera
+ORIENTACION_IDEOLOGICA: IoPoR1) 1 (Izquierda) | IoPoR2) 2 | IoPoR3) 3 | IoPoR4) 4 | IoPoR5) 5 (Centro) | IoPoR6) 6 | IoPoR7) 7 | IoPoR8) 8 | IoPoR9) 9 | IoPoR10) 10 (Derecha)
+PARTIDO_POLITICO: PP1) Partido Republicano | PP2) Renovación Nacional (RN) | PP3) Frente Amplio | PP4) Partido Comunista (PC) | PP5) Partido Socialista (PS) | PP6) Democracia Cristiana (DC) | PP7) Unión Demócrata Independiente (UDI) | PP8) Partido Por la Democracia (PPD) | PP9) Partido de la Gente (PDG) | PP10) Partido Liberal | PP11) Partido Demócratas Chile | PP12) Evolución Política (EVOPOLI) | PP13) Partido Social Cristiano | PP14) Partido Radical (PR) | PP15) Frente Regionalista Verde Social (FRVS) | PP16) Movimiento Amarillos Por Chile
+AFINIDAD_PARTIDO: Afi1) Ninguna simpatía | Afi2) | Afi3) | Afi4) | Afi5) | Afi6) | Afi7) Mucha simpatía
+INTERES_POLITICA: INTP1) Muy interesado(a) | INTP2) Algo interesado(a) | INTP3) Poco interesado(a) | INTP4) Nada interesado(a)
+ATENCION_CAMPANA_2025: ATT25_1) Mucho | ATT25_2) Algo | ATT25_3) Un poco | ATT25_4) Nada
+ATENCION_CAMPANA_2021: ATT21_1) Mucho | ATT21_2) Algo | ATT21_3) Un poco | ATT21_4) Nada
+CONFIANZA_GENERAL: TRUS1) Siempre confío en otras personas | TRUS2) La mayor parte del tiempo confío | TRUS3) Aproximadamente la mitad del tiempo confío | TRUS4) Algunas veces confío | TRUS5) Nunca confío
+PARTICIPACION_PRESIDENCIAL_2021: Thpa1) No hay posibilidad de que haya votado (prob=0) | Thpa2) Muy improbable (0,15) | Thpa3) Improbable (0,3) | Thpa4) 50% de probabilidades (0,5) | Thpa5) Probable (0,7) | Thpa6) Muy probable (0,85) | Thpa7) Certeza de que votó (prob=1)
+VOTO_PRESIDENCIAL_2021: Vpa1) No votó | Vpa2) Gabriel Boric | Vpa3) José Antonio Kast | Vpa4) Yasna Provoste | Vpa5) Sebastián Sichel | Vpa6) Eduardo Artés | Vpa7) Marco Enríquez-Ominami | Vpa8) Franco Parisi
+INDV_PARTICIPACION_LEGISLATIVA_2021: Tpaindv1) No hay posibilidad de que haya votado (prob=0) | Tpaindv2) Muy improbable (0,15) | Tpaindv3) Poco probable (0,3) | Tpaindv4) 50% de probabilidades (0,5) | Tpaindv5) Probable (0,7) | Tpaindv6) Muy probable (0,85) | Tpaindv7) Certeza de que votó (prob=1)
+INDV_VOTO_LEGISLATIVO_2021: Vpaindv1) No votó | Vpaindv2) Convergencia Social (CS) | Vpaindv3) Revolución Democrática (RD) | Vpaindv4) Partido Comunista (PC) | Vpaindv5) PDC | Vpaindv6) PPD | Vpaindv7) UDI | Vpaindv8) RN | Vpaindv9) Partido Republicano | Vpaindv10) PDG | Vpaindv11) PRO | Vpaindv12) Independiente
+INDV_PARTICIPACION_2025: Tcuindv1) No hay posibilidad de que vaya a votar (prob=0) | Tcuindv2) Muy improbable (0,15) | Tcuindv3) Improbable (0,3) | Tcuindv4) 50% de probabilidades (0,5) | Tcuindv5) Probable (0,7) | Tcuindv6) Muy probable (0,85) | Tcuindv7) Certeza de que irá a votar (prob=1)
+INDV_INTENCION_VOTO_2025: Vcuindv1) No votaría | Vcuindv2) Jeannette Jara | Vcuindv3) José Antonio Kast | Vcuindv4) Evelyn Matthei | Vcuindv5) Johannes Kaiser | Vcuindv6) Franco Parisi | Vcuindv7) Marco Enríquez-Ominami | Vcuindv8) Eduardo Artés
+INDECISION_2025: Und1) No hay posibilidad de cambio (prob=0) | Und2) Muy improbable que cambie (0,15) | Und3) Poco probable que cambie (0,3) | Und4) 50% de probabilidades de cambio (0,5) | Und5) Probable que cambie (0,7) | Und6) Muy probable que cambie (0,85) | Und7) Certeza de que cambiará (prob=1)
+FAVORABILIDAD_KAST: Kfa1) Opinión muy favorable | Kfa2) Algo favorable | Kfa3) Algo desfavorable | Kfa4) Muy desfavorable | Kfa5) Desconoce al candidato
+FAVORABILIDAD_JARA: Jfa1) Opinión muy favorable | Jfa2) Algo favorable | Jfa3) Algo desfavorable | Jfa4) Muy desfavorable | Jfa5) Desconoce a la candidata
+FAVORABILIDAD_MATTHEI: Efa1) Opinión muy favorable | Efa2) Algo favorable | Efa3) Algo desfavorable | Efa4) Muy desfavorable | Efa5) Desconoce a la candidata
+FAVORABILIDAD_PARISI: Pfa1) Opinión muy favorable | Pfa2) Algo favorable | Pfa3) Algo desfavorable | Pfa4) Muy desfavorable | Pfa5) Desconoce al candidato
+FAVORABILIDAD_MEO: Mfa1) Opinión muy favorable | Mfa2) Algo favorable | Mfa3) Algo desfavorable | Mfa4) Muy desfavorable | Mfa5) Desconoce al candidato
+FAVORABILIDAD_ARTES: Afa1) Opinión muy favorable | Afa2) Algo favorable | Afa3) Algo desfavorable | Afa4) Muy desfavorable | Afa5) Desconoce al candidato
+FAVORABILIDAD_KAISER: JKfa1) Opinión muy favorable | JKfa2) Algo favorable | JKfa3) Algo desfavorable | JKfa4) Muy desfavorable | JKfa5) Desconoce al candidato
+TEMA_MAS_IMPORTANTE: Moi01) Economía | Moi02) Desempleo | Moi03) Corrupción | Moi04) Problemas políticos | Moi05) Delincuencia / seguridad pública | Moi06) Pobreza | Moi07) Educación | Moi08) Salud | Moi09) Desigualdad de ingresos
+
+Lista completa de comunas (COMUNA):
+""" + comuna_option_list

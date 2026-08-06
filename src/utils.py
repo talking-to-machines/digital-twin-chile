@@ -120,7 +120,24 @@ def construct_user_prompt(
     return user_prompt_template
 
 
-def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Series:
+def extract_llm_responses(
+    text, substring_exclusion_list: list = [], canonical_labels: list = None
+) -> pd.Series:
+    """
+    ``canonical_labels``, if given, is matched case-insensitively against each
+    parsed question label and the label is rewritten to its canonical form.
+    Guards against the model echoing a question label back in the wrong case
+    (observed for Arm D: a whole response in lowercase, e.g. "persona_real"
+    instead of "PERSONA_REAL") producing a same-question-different-case
+    duplicate column downstream instead of being recognised as the same
+    question. Default ``None`` preserves the original behaviour for callers
+    that don't pass it (e.g. stock-recommendation interviews, which have no
+    such fixed label set to normalise against).
+    """
+    _canonical_lookup = (
+        {label.lower(): label for label in canonical_labels} if canonical_labels else {}
+    )
+
     # Split the text by double newlines to separate different questions
     questions_blocks = re.split(r"(?=\*\*question:)", text)
     questions_blocks = [
@@ -143,6 +160,7 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
     confidence_list = []
     expected_holding_period_list = []
     primary_catalyst_type_list = []
+    probabilities_list = []
 
     # Define regex patterns for each field
     question_pattern = r"\*\*question: (.*?)\*\*"
@@ -157,6 +175,7 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
     confidence_pattern = r"\*\*confidence: (.*?)\*\*"
     expected_holding_period_pattern = r"\*\*expected holding period: (.*?)\*\*"
     primary_catalyst_type_pattern = r"\*\*primary catalyst type: (.*?)\*\*"
+    probabilities_pattern = r"\*\*probabilities: (.*?)\*\*"
 
     # Iterate through each question block and extract the fields
     for block in questions_blocks:
@@ -178,8 +197,12 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
         primary_catalyst_type = re.search(
             primary_catalyst_type_pattern, block, re.DOTALL
         )
+        probabilities = re.search(probabilities_pattern, block, re.DOTALL)
 
-        questions_list.append(question.group(1).replace("”", "") if question else None)
+        _qname = question.group(1).replace("”", "") if question else None
+        if _qname and _canonical_lookup:
+            _qname = _canonical_lookup.get(_qname.strip().lower(), _qname)
+        questions_list.append(_qname)
         explanations_list.append(explanation.group(1) if explanation else None)
         symbols_list.append(symbol.group(1) if symbol else None)
         categories_list.append(category.group(1) if category else None)
@@ -195,6 +218,7 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
         primary_catalyst_type_list.append(
             primary_catalyst_type.group(1) if primary_catalyst_type else None
         )
+        probabilities_list.append(probabilities.group(1) if probabilities else None)
 
     # Create a DataFrame
     data = {
@@ -210,6 +234,7 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
         "confidence": confidence_list,
         "expected_holding_period": expected_holding_period_list,
         "primary_catalyst_type": primary_catalyst_type_list,
+        "probabilities": probabilities_list,
     }
     df = pd.DataFrame(data)
 
@@ -244,6 +269,10 @@ def extract_llm_responses(text, substring_exclusion_list: list = []) -> pd.Serie
         if row["primary_catalyst_type"]:
             flattened_series[f"{question_prefix} - primary catalyst type"] = row[
                 "primary_catalyst_type"
+            ]
+        if row["probabilities"]:
+            flattened_series[f"{question_prefix} - probabilities"] = row[
+                "probabilities"
             ]
 
     return flattened_series
@@ -291,6 +320,7 @@ def extract_json_predictions(
         "speculation",
         "explanation",
         "evidence_basis",
+        "probability_distribution",
     ),
 ) -> pd.Series:
     """Flatten a Stage 2 JSON prediction object (Arms B/C) into a flat Series.
@@ -334,7 +364,10 @@ def extract_json_predictions(
                 continue
             for field in field_keys:
                 if field in prediction and prediction[field] is not None:
-                    flattened_series[f"{question_key} - {field}"] = prediction[field]
+                    value = prediction[field]
+                    if isinstance(value, (list, dict)):
+                        value = json.dumps(value, ensure_ascii=False)
+                    flattened_series[f"{question_key} - {field}"] = value
 
     for meta_key in (
         "subject_id",

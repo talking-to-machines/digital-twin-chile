@@ -10,6 +10,14 @@ Changes from original prompt_template.py:
 - Typo fixed: OCUPACIÓN ACUTAL → OCUPACIÓN ACTUAL.
 - OCCUP3 and OCCUP4 separated onto individual lines.
 - Legislative vote codes Vpandv6-12 corrected to Vpaindv6-12.
+- 2026-07-27: PP16) Movimiento Amarillos Por Chile added to PARTIDO POLÍTICO —
+  the fielded Qualtrics instrument (Q3.1) offers it; its absence here was the
+  deviation. "No me identifico con un partido" remains deliberately unmapped
+  (open team decision; see QA report 06, pinned Asana task).
+- 2026-07-27: AFINIDAD_PARTIDO's symbol changed from a bare "1"-"7" to
+  "Afi1"-"Afi7". It was the only symbol in the entire codebook with no letter
+  prefix; Lucas's QA code_specs regex for AFINIDAD_PARTIDO needs widening
+  from ^[1-7]$ to ^Afi[1-7]$ to match (see QA report 06 appendix).
 
 Pipeline calls (same as original):
   Call 1: system=x_digital_twin_system_prompt,
@@ -136,12 +144,14 @@ A continuación, se presenta la lista de categorías a las que este usuario pued
 PERSONA REAL: ¿Esta cuenta corresponde a una persona real o a otro tipo de entidad?
 RP1) Persona
 RP2) Otro
+CI) CANNOT_INFER
 
 PERSONA QUE VIVE EN CHILE: ¿El usuario de esta cuenta vive en Chile?
 PLC1) Sí
 PLC2) No
+CI) CANNOT_INFER
 
-REGIÓN: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la región en la que vive el usuario de la siguiente lista. De lo contrario, responda con "NA".
+REGIÓN: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la región en la que vive el usuario de la siguiente lista, o "CI" si no hay evidencia suficiente para determinarla. Si la respuesta a PERSONA QUE VIVE EN CHILE es "No", responda con "NA" (no seleccione ningún código numerado de la lista).
 REG1) DE ANTOFAGASTA
 REG2) DE ARICA Y PARINACOTA
 REG3) DE ATACAMA
@@ -158,9 +168,9 @@ REG13) DEL BIOBIO
 REG14) DEL LIBERTADOR GENERAL BERNARDO O'HIGGINS
 REG15) DEL MAULE
 REG16) METROPOLITANA DE SANTIAGO
-REG17) NA
+CI) CANNOT_INFER
 
-COMUNA: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la comuna en la que vive el usuario de la siguiente lista. De lo contrario, responda con "NA".
+COMUNA: Si la respuesta a la pregunta PERSONA QUE VIVE EN CHILE es "Sí", seleccione la comuna en la que vive el usuario de la siguiente lista, o "CI" si no hay evidencia suficiente para determinarla. Si la respuesta a PERSONA QUE VIVE EN CHILE es "No", responda con "NA" (no seleccione ningún código numerado de la lista).
 COMU1) ALGARROBO
 COMU2) ALHUE
 COMU3) ALTO BIOBIO
@@ -266,7 +276,7 @@ COMU102) GRANEROS
 COMU103) GUAITECAS
 COMU104) HIJUELAS
 COMU105) HUALAIHUE
-COMU106) HUALAAÑE
+COMU106) HUALAÑE
 COMU107) HUALPEN
 COMU108) HUALQUI
 COMU109) HUARA
@@ -506,7 +516,8 @@ COMU342) YUMBEL
 COMU343) YUNGAY
 COMU344) ZAPALLAR
 COMU345) ÑIQUEN
-COMU346) ÑUÑOA"""
+COMU346) ÑUÑOA
+CI) CANNOT_INFER"""
 
 # ─── Voting Preference Interview (without voting results) ─────────────────────
 
@@ -530,17 +541,22 @@ Incorrecto:
 **category: PP12) Evolución Política (EVOPOLI)**
 
 Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
+
+DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD, SEXO, ORIENTACIÓN IDEOLÓGICA O POLÍTICA, y (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 — y únicamente para estas cuatro — incluya una línea adicional **probabilities:** con la probabilidad estimada (0 a 1, con coma decimal) de cada opción de respuesta posible para esa pregunta, incluyendo CI, en el formato SÍMBOLO=probabilidad separadas por punto y coma (ejemplo: **probabilities: AG1=0,05; AG2=0,10; AG3=0,40; AG4=0,25; AG5=0,10; AG6=0,05; AG7=0,05; CI=0,00**). Las probabilidades de una misma pregunta deben sumar 1. No agregue esta línea a ninguna otra pregunta.
+
 **question: EDAD**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de AG1-AG7 y CI, suma = 1)>**
 
 **question: SEXO**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de S1-S2 y CI, suma = 1)>**
 
 **question: RANGO DE INGRESOS PERSONALES**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
@@ -577,6 +593,7 @@ Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de IoPoR1-IoPoR10 y CI, suma = 1)>**
 
 **question: PARTIDO POLÍTICO**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
@@ -586,8 +603,8 @@ Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (
 
 **question: AFINIDAD CON PARTIDO POLÍTICO**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <VALOR 1–7 AQUÍ>**
-**category: <DESCRIPCIÓN DEL NIVEL DE AFINIDAD>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
 **question: INTERÉS EN LA POLÍTICA**
@@ -650,6 +667,13 @@ Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
+**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de Vsv1-Vsv5 y CI, suma = 1)>**
+
 **question: INDECISIÓN EN TORNO A LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
@@ -704,12 +728,6 @@ Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT**
-**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
-**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
-**category: <CATEGORÍA SELECCIONADA AQUÍ>**
-**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-
 ¡USTED DEBE DAR UNA RESPUESTA PARA CADA TÍTULO!
 A continuación, se presenta la lista de categorías a las que este usuario puede pertenecer:
 
@@ -722,11 +740,13 @@ AG4) De 35 a 44 años
 AG5) De 45 a 54 años
 AG6) De 55 a 64 años
 AG7) 65 años o más
+CI) CANNOT_INFER
 
 SEXO:
 ¿Cuál es su género?
 S1) Masculino
 S2) Femenino
+CI) CANNOT_INFER
 
 RANGO DE INGRESOS PERSONALES:
 ¿En qué rango considera que se ubica su ingreso individual mensual?
@@ -747,6 +767,7 @@ PINC14) $7.500.001 a $10.000.000
 PINC15) $10.000.001 a $15.000.000
 PINC16) $15.000.001 a $20.000.000
 PINC17) Más de $20.000.000
+CI) CANNOT_INFER
 
 RANGO DE INGRESOS DEL HOGAR:
 ¿En qué rango considera que se ubica el ingreso mensual total de su hogar?
@@ -767,6 +788,7 @@ HINC14) $7.500.001 a $10.000.000
 HINC15) $10.000.001 a $15.000.000
 HINC16) $15.000.001 a $20.000.000
 HINC17) Más de $20.000.000
+CI) CANNOT_INFER
 
 ESTADO CIVIL:
 ¿Cuál es su estado civil actual?
@@ -775,6 +797,7 @@ MAR2) Separado(a) — legalmente casado(a) pero separado(a) de su cónyuge
 MAR3) Soltero(a) — nunca casado(a), incluyendo a quienes están legalmente separados
 MAR4) Divorciado(a) — legalmente divorciado(a) y no vuelto(a) a casar
 MAR5) Viudo(a) — el cónyuge ha fallecido y no vuelto(a) a casar
+CI) CANNOT_INFER
 
 CALIFICACIÓN EDUCATIVA MÁS ALTA:
 ¿Cuál es su mayor nivel educacional?
@@ -792,6 +815,7 @@ EDU11) Profesional (carreras 1–6 años)
 EDU12) Magíster
 EDU13) Doctorado
 EDU14) Nunca asistió
+CI) CANNOT_INFER
 
 OCUPACIÓN ACTUAL:
 ¿Cuál de las opciones ejemplifica mejor su ocupación principal?
@@ -803,10 +827,11 @@ OCCUP5) Empleado u obrero del sector privado
 OCCUP6) Fuerzas Armadas, de Orden y Seguridad
 OCCUP7) Servicio doméstico puertas adentro
 OCCUP8) Servicio doméstico puertas afuera
+CI) CANNOT_INFER
 
 ORIENTACIÓN IDEOLÓGICA O POLÍTICA:
 A continuación, se presenta una escala del 1 al 10 que va de izquierda a derecha, donde 1 significa "Izquierda" y 10 significa "Derecha". Hoy en día cuando se habla de tendencias políticas, mucha gente habla de aquellos que simpatizan más con la izquierda o con la derecha. Según el sentido que tengan para usted los términos "Izquierda" y "Derecha" cuando piensa sobre su punto de vista político, ¿Dónde se encontraría en esta escala? Indique el número.
-IoPoR1) 1
+IoPoR1) 1 Izquierda
 IoPoR2) 2
 IoPoR3) 3
 IoPoR4) 4
@@ -815,7 +840,8 @@ IoPoR6) 6
 IoPoR7) 7
 IoPoR8) 8
 IoPoR9) 9
-IoPoR10) 10
+IoPoR10) 10 Derecha
+CI) CANNOT_INFER
 
 PARTIDO POLÍTICO:
 Generalmente, ¿con qué partido político simpatiza?
@@ -834,9 +860,19 @@ PP12) Evolución Política (EVOPOLI)
 PP13) Partido Social Cristiano
 PP14) Partido Radical (PR)
 PP15) Frente Regionalista Verde Social (FRVS)
+PP16) Movimiento Amarillos Por Chile
+CI) CANNOT_INFER
 
 AFINIDAD CON PARTIDO POLÍTICO:
 En una escala de 1 a 7, donde 1 significa que no siente ninguna simpatía y 7 significa que siente mucha simpatía por el partido político escogido, ¿qué grado de afinidad siente por el partido que eligió?
+Afi1) 1 Ninguna simpatía
+Afi2) 2
+Afi3) 3
+Afi4) 4
+Afi5) 5
+Afi6) 6
+Afi7) 7 Mucha simpatía
+CI) CANNOT_INFER
 
 INTERÉS EN LA POLÍTICA:
 En términos generales, ¿qué tanto le interesa la política?
@@ -844,6 +880,7 @@ INTP1) Muy interesado(a)
 INTP2) Algo interesado(a)
 INTP3) Poco interesado(a)
 INTP4) Nada interesado(a)
+CI) CANNOT_INFER
 
 ATENCIÓN CAMPAÑA 2025:
 ¿Cuánta atención prestó a la campaña para las elecciones generales de 2025?
@@ -851,6 +888,7 @@ ATT25_1) Mucho
 ATT25_2) Algo
 ATT25_3) Un poco
 ATT25_4) Nada
+CI) CANNOT_INFER
 
 ATENCIÓN CAMPAÑA 2021:
 ¿Cuánta atención prestó a la campaña para las elecciones generales de 2021?
@@ -858,6 +896,7 @@ ATT21_1) Mucho
 ATT21_2) Algo
 ATT21_3) Un poco
 ATT21_4) Nada
+CI) CANNOT_INFER
 
 CONFIANZA GENERAL EN OTRAS PERSONAS:
 En términos generales, ¿cree que se puede confiar en la mayoría de las personas, o que hay que ser muy cuidadoso al tratar con la gente?
@@ -866,6 +905,7 @@ TRUS2) La mayor parte del tiempo confío en otras personas
 TRUS3) Aproximadamente la mitad del tiempo confío en otras personas
 TRUS4) Algunas veces confío en otras personas
 TRUS5) Nunca confío en otras personas
+CI) CANNOT_INFER
 
 (INDV) VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
 Tpaindv1) No hay posibilidad de que esta persona haya votado — Probabilidad: 0 — en las elecciones legislativas de 2021.
@@ -875,6 +915,7 @@ Tpaindv4) Hay un 50% de probabilidades de que esta persona haya votado — Proba
 Tpaindv5) Es probable que esta persona haya votado — Probabilidad: 0,7 — en las elecciones legislativas de 2021.
 Tpaindv6) Es muy probable que esta persona haya votado — Probabilidad: 0,85 — en las elecciones legislativas de 2021.
 Tpaindv7) Hay certeza de que esta persona ha votado — Probabilidad: 1 — en las elecciones legislativas de 2021.
+CI) CANNOT_INFER
 
 (INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021:
 Vpaindv1) no votó en las elecciones legislativas de 2021
@@ -889,6 +930,7 @@ Vpaindv9) votó por un candidato del Partido Republicano (PLR) en las elecciones
 Vpaindv10) votó por un candidato del Partido de la Gente (PDG) en las elecciones legislativas de 2021
 Vpaindv11) votó por un candidato del Partido Progresista (PRO) en las elecciones legislativas de 2021
 Vpaindv12) votó por un candidato independiente en las elecciones legislativas de 2021
+CI) CANNOT_INFER
 
 VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
 Thpa1) No hay posibilidad de que esta persona haya votado — Probabilidad: 0 — en las elecciones presidenciales de 2021
@@ -898,6 +940,7 @@ Thpa4) 50% de probabilidades de que esta persona haya votado — Probabilidad: 0
 Thpa5) Es probable que esta persona haya votado — Probabilidad: 0,7 — en las elecciones presidenciales de 2021
 Thpa6) Es muy probable que esta persona haya votado — Probabilidad: 0,85 — en las elecciones presidenciales de 2021
 Thpa7) Se tiene certeza de que esta persona ha votado — Probabilidad: 1 — en las elecciones presidenciales de 2021
+CI) CANNOT_INFER
 
 VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
 Vpa1) no votó en las elecciones presidenciales de 2021
@@ -908,6 +951,7 @@ Vpa5) votó por Sebastián Sichel, candidato independiente apoyado por Chile Pod
 Vpa6) votó por Eduardo Artés, candidato de la Unión Patriótica, en las elecciones presidenciales de 2021
 Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en las elecciones presidenciales de 2021
 Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021
+CI) CANNOT_INFER
 
 (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Tcuindv1) No hay posibilidad de que esta persona vaya a votar — Probabilidad: 0 — en las elecciones presidenciales de 2025
@@ -917,6 +961,7 @@ Tcuindv4) Probabilidad del 50% de que esta persona vote — Probabilidad: 0,5 �
 Tcuindv5) Probable que esta persona vaya a votar — Probabilidad: 0,7 — en las elecciones presidenciales de 2025
 Tcuindv6) Es muy probable que esta persona vaya a votar — Probabilidad: 0,85 — en las elecciones presidenciales de 2025
 Tcuindv7) Hay certeza de que esta persona irá a votar — Probabilidad: 1 — en las elecciones presidenciales de 2025
+CI) CANNOT_INFER
 
 (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 Vcuindv1) no votaría en las elecciones presidenciales de 2025
@@ -927,6 +972,15 @@ Vcuindv5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertari
 Vcuindv6) votaría por Franco Parisi, candidato del Partido de la Gente (PDG), en las elecciones presidenciales de 2025
 Vcuindv7) votaría por Marco Enríquez-Ominami, candidato independiente no afiliado a ningún partido mayoritario (recogiendo firmas), en las elecciones presidenciales de 2025
 Vcuindv8) votaría por Eduardo Artés, candidato independiente no afiliado a ningún partido mayoritario (en proceso de recolección de firmas), en las elecciones presidenciales de 2025
+CI) CANNOT_INFER
+
+(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025: Ahora le preguntaremos sobre la segunda vuelta de las elecciones presidenciales, que se realizará el próximo domingo 14 de diciembre de 2025. Si las elecciones presidenciales fueran hoy, ¿por cuál de los siguientes candidatos votaría?
+Vsv1) votaría por Jeannette Jara, la candidata del Partido Comunista / Unidad por Chile, en la segunda vuelta de las elecciones presidenciales de 2025
+Vsv2) votaría por José Antonio Kast, el candidato del Partido Republicano / PSC, en la segunda vuelta de las elecciones presidenciales de 2025
+Vsv3) votaría nulo o blanco en la segunda vuelta de las elecciones presidenciales de 2025
+Vsv4) no votaría en la segunda vuelta de las elecciones presidenciales de 2025
+Vsv5) no está seguro(a) de qué votaría en la segunda vuelta de las elecciones presidenciales de 2025
+CI) CANNOT_INFER
 
 INDECISIÓN EN TORNO A LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
 ¿CUÁN PROBABLE ES QUE EL USUARIO CAMBIE DE OPINIÓN SOBRE SU VOTO RESPECTO A LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025, ENTRE AHORA — FECHA DE SU ÚLTIMO TUIT — Y EL DÍA DE LAS ELECCIONES EN NOVIEMBRE DE 2025?
@@ -937,6 +991,7 @@ Und4) Probabilidad del 50% de que esta persona cambie de opinión — probabilid
 Und5) Es probable que esta persona cambie de opinión — probabilidad: 0,7
 Und6) Es muy probable que esta persona cambie de opinión — Probabilidad: 0,85
 Und7) Se tiene certeza de que esta persona cambiará de opinión — probabilidad: 1
+CI) CANNOT_INFER
 
 FAVORABILIDAD DEL CANDIDATO PRESIDENCIAL CHILENO JOSÉ ANTONIO KAST:
 Kfa1) Opinión muy favorable de José Antonio Kast
@@ -944,6 +999,7 @@ Kfa2) Opinión algo favorable de José Antonio Kast
 Kfa3) Opinión algo desfavorable de José Antonio Kast
 Kfa4) Opinión muy desfavorable de José Antonio Kast
 Kfa5) Desconozco quién es José Antonio Kast, por lo que no puedo tener una opinión sobre él
+CI) CANNOT_INFER
 
 FAVORABILIDAD DE LA CANDIDATA PRESIDENCIAL CHILENA JEANNETTE JARA:
 Jfa1) Opinión muy favorable de Jeannette Jara
@@ -951,6 +1007,7 @@ Jfa2) Opinión algo favorable de Jeannette Jara
 Jfa3) Opinión algo desfavorable de Jeannette Jara
 Jfa4) Opinión muy desfavorable de Jeannette Jara
 Jfa5) Desconozco quién es Jeannette Jara, por lo que no puedo tener una opinión sobre ella
+CI) CANNOT_INFER
 
 FAVORABILIDAD DE LA CANDIDATA PRESIDENCIAL CHILENA EVELYN MATTHEI:
 Efa1) Opinión muy favorable de Evelyn Matthei
@@ -958,6 +1015,7 @@ Efa2) Opinión algo favorable de Evelyn Matthei
 Efa3) Opinión algo desfavorable de Evelyn Matthei
 Efa4) Opinión muy desfavorable de Evelyn Matthei
 Efa5) Desconozco quién es Evelyn Matthei, por lo que no puedo tener una opinión sobre ella
+CI) CANNOT_INFER
 
 FAVORABILIDAD DEL CANDIDATO PRESIDENCIAL CHILENO FRANCO PARISI:
 Pfa1) Opinión muy favorable de Franco Parisi
@@ -965,6 +1023,7 @@ Pfa2) Opinión algo favorable de Franco Parisi
 Pfa3) Opinión algo desfavorable de Franco Parisi
 Pfa4) Opinión muy desfavorable de Franco Parisi
 Pfa5) Desconozco quién es Franco Parisi, por lo que no puedo tener una opinión sobre él
+CI) CANNOT_INFER
 
 FAVORABILIDAD DEL CANDIDATO PRESIDENCIAL CHILENO MARCO ENRÍQUEZ-OMINAMI:
 Mfa1) Opinión muy favorable de Marco Enríquez-Ominami
@@ -972,6 +1031,7 @@ Mfa2) Opinión algo favorable de Marco Enríquez-Ominami
 Mfa3) Opinión algo desfavorable de Marco Enríquez-Ominami
 Mfa4) Opinión muy desfavorable de Marco Enríquez-Ominami
 Mfa5) Desconozco quién es Marco Enríquez-Ominami, por lo que no puedo tener una opinión sobre él
+CI) CANNOT_INFER
 
 FAVORABILIDAD DEL CANDIDATO PRESIDENCIAL CHILENO EDUARDO ARTÉS:
 Afa1) Opinión muy favorable de Eduardo Artés
@@ -979,6 +1039,7 @@ Afa2) Opinión algo favorable de Eduardo Artés
 Afa3) Opinión algo desfavorable de Eduardo Artés
 Afa4) Opinión muy desfavorable de Eduardo Artés
 Afa5) Desconozco quién es Eduardo Artés, por lo que no puedo tener una opinión sobre él
+CI) CANNOT_INFER
 
 FAVORABILIDAD DEL CANDIDATO PRESIDENCIAL CHILENO JOHANNES KAISER:
 JKfa1) Opinión muy favorable de Johannes Kaiser
@@ -986,6 +1047,7 @@ JKfa2) Opinión algo favorable de Johannes Kaiser
 JKfa3) Opinión algo desfavorable de Johannes Kaiser
 JKfa4) Opinión muy desfavorable de Johannes Kaiser
 JKfa5) Desconozco quién es Johannes Kaiser, por lo que no puedo tener una opinión sobre él
+CI) CANNOT_INFER
 
 CREENCIA SOBRE EL TEMA MÁS IMPORTANTE ACTUALMENTE:
 ¿Cuál cree que es el problema más importante que enfrenta el país hoy en día? Por favor, elija un solo tema que considere el más importante.
@@ -998,13 +1060,4 @@ Moi06) Pobreza
 Moi07) Educación
 Moi08) Salud
 Moi09) Desigualdad de ingresos
-
-PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 SI LAS ELECCIONES SE CELEBRARAN EN LA FECHA DE SU ÚLTIMO TUIT:
-Vcu1) no votaría en las elecciones presidenciales de 2025
-Vcu2) votaría por José Antonio Kast, candidato del Partido Republicano, en las elecciones presidenciales de 2025
-Vcu3) votaría por Jeannette Jara, candidata del Partido Comunista, en las elecciones presidenciales de 2025
-Vcu4) votaría por Evelyn Matthei, candidata de la Unión Demócrata Independiente, en las elecciones presidenciales de 2025
-Vcu5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertario, en las elecciones presidenciales de 2025
-Vcu6) votaría por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2025
-Vcu7) votaría por Marco Enríquez-Ominami, candidato independiente, en las elecciones presidenciales de 2025
-Vcu8) votaría por Eduardo Artés, candidato independiente, en las elecciones presidenciales de 2025"""
+CI) CANNOT_INFER"""

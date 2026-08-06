@@ -62,6 +62,9 @@ information and web search enabled.
 | `--include-profile-info` / `--no-include-profile-info` | — | `--include-profile-info` | Include the user's profile metadata and tweets in the prompts. |
 | `--enable-web-search` / `--no-enable-web-search` | — | `--enable-web-search` | Allow the model to use web search during the interviews. |
 | `--skip-profile-search` | — | off | Skip Step 1 (profile metadata/post retrieval) and reuse the data already present in this arm's output folder. |
+| `--shuffle-scope` | `nominal`, `all` | `nominal` | Arm `c` only: which Stage 2 option lists to randomise. `nominal` shuffles only nominal-scale questions; `all` also shuffles ordinal scales. Ignored by other arms, and ignored if `--shuffle-keys` is given. |
+| `--shuffle-keys` | comma-separated question keys, or `all` | unset | Arm `c` only: exact question keys to shuffle (e.g. `REGION,COMUNA,SEXO`), overriding `--shuffle-scope` entirely. Accepts any of Arm C's `SHUFFLEABLE_KEYS`, including `COMUNA` (otherwise always canonical order regardless of scope). Pass `all` to shuffle every shuffleable question (the split-sample "shuffle everything" diagnostic). |
+| `--seed-suffix` | any string | `""` | Arm `c` only: appended to the per-question shuffle seed and to the randomization-log/predictions filenames, so a different suffix (e.g. `_v2`) reshuffles independently for repeated-seed sensitivity runs without overwriting the previous run's output. |
 
 Run `python -m src.digital_twin_chile_x --help` to see all options.
 
@@ -113,7 +116,29 @@ python -m src.digital_twin_chile_x --treatment-arm b --skip-profile-search
 > evidence sheet, so pass `--no-enable-web-search` for a strictly evidence-only
 > Stage 2.
 
-### 4.5 Output location
+### 4.5 Arm `c`: randomising Stage 2 option order
+
+```bash
+# Default: shuffle only nominal-scale questions
+python -m src.digital_twin_chile_x --treatment-arm c
+
+# Also shuffle ordinal-scale questions
+python -m src.digital_twin_chile_x --treatment-arm c --shuffle-scope all
+
+# Shuffle only specific questions, ignoring --shuffle-scope
+python -m src.digital_twin_chile_x --treatment-arm c --shuffle-keys REGION,COMUNA,SEXO
+
+# Shuffle every shuffleable question (ordering-sensitivity diagnostic)
+python -m src.digital_twin_chile_x --treatment-arm c --shuffle-keys all
+
+# Re-run with an independent reshuffle, without overwriting the first run's output
+python -m src.digital_twin_chile_x --treatment-arm c --seed-suffix _v2
+```
+
+Each Arm C run writes a per-subject randomization log (which option order was
+shown) to `randomization_logs/`, alongside the Stage 2 output, for audit.
+
+### 4.6 Output location
 
 Each run is namespaced by variant and treatment arm so runs never overwrite each
 other. Results are written to:
