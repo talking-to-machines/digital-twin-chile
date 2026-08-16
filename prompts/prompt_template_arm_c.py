@@ -63,7 +63,7 @@ from prompts.prompt_template_arm_b import (
     _CI_LINES,
 )
 
-# All keys build_arm_c_stage2_user_prompt is allowed to shuffle: the 33
+# All keys build_arm_c_stage2_user_prompt is allowed to shuffle: the 34
 # CANONICAL_OPTIONS questions plus COMUNA, which is handled separately below
 # because (at 346 options) it is excluded from the scope-based nominal/all
 # partition by volume, not because it can never be shuffled.
@@ -83,6 +83,7 @@ NOMINAL_KEYS = (
     "OCUPACION",
     "PARTIDO",
     "VPA",
+    "VBA",
     "VPAINDV_LEG",
     "VCUINDV",
     "VSV",
@@ -90,6 +91,8 @@ NOMINAL_KEYS = (
     "PERSONA_REAL",
     "PERSONA_VIVE_CHILE",
     "REGION",
+    "THPA",
+    "TCUINDV",
 )
 
 ORDINAL_KEYS = (
@@ -103,9 +106,7 @@ ORDINAL_KEYS = (
     "ATT2025",
     "ATT2021",
     "CONFIANZA",
-    "THPA",
     "TPAINDV_LEG",
-    "TCUINDV",
     "INDECISION",
     "FAV_KAST",
     "FAV_JARA",

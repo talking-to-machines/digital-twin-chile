@@ -40,17 +40,19 @@ Output parsing:
     extracted programmatically from prompt_template_arm_a.py at import time
     (comuna_option_list below), so the two arms cannot drift.
   - Reference categories are complete (no elisions); every symbol placeholder
-    in the Stage 2 schema enumerates its codes explicitly (PP1|PP2|...|PP16,
-    never PP1..PP16) to avoid code hallucination; ATT codes fixed to
+    in the Stage 2 schema enumerates its codes explicitly (PP1|PP2|...|PP17,
+    never PP1..PP17) to avoid code hallucination; ATT codes fixed to
     ATT25_/ATT21_; EDU all 14; PP now includes PP16 (Movimiento Amarillos Por
-    Chile — present in the fielded Q3.1). "No me identifico con un partido"
-    remains unmapped (open team decision).
+    Chile — present in the fielded Q3.1) and PP17 (No me identifico con un
+    partido, added 2026-08-02/03 per Ray's memo).
   - Stage 1 subject_id is the account handle ({account_id}), not the display
     name; Stage 1 output now carries pipeline_stage: "1".
 """
 
 import os
 import re as _re
+
+from config.digital_twin_config import REFERENCE_DATE_SENTENCE
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -87,7 +89,9 @@ Hashtags: {hashtags}"""
 
 # ─── Stage 1 — Evidence Extraction ───────────────────────────────────────────
 
-arm_b_stage1_system_prompt = """Usted es un asistente de extracción de evidencia. Su tarea es analizar un perfil de red social y documentar ÚNICAMENTE la evidencia observable — directa o indirecta — presente en los datos proporcionados.
+arm_b_stage1_system_prompt = f"""Usted es un asistente de extracción de evidencia. Su tarea es analizar un perfil de red social y documentar ÚNICAMENTE la evidencia observable — directa o indirecta — presente en los datos proporcionados.
+
+{REFERENCE_DATE_SENTENCE}
 
 REGLAS ESTRICTAS:
 1. En esta etapa NO realice predicciones de encuesta. Solo documente evidencia.
@@ -105,7 +109,9 @@ NIVELES DE CONFIANZA (aplica a todo campo, incluidas las listas left_signals/rig
 
 supporting_quotes: cite literalmente (verbatim) el o los tweets que respaldan direct_evidence/indirect_evidence del mismo campo. No incluya tweets no vinculados; no lo deje vacío si citó contenido puntual del perfil.
 
-LISTAS ESTRUCTURADAS (left/right/center_signals, active_abstention_signals): cada entrada es una observación puntual (cita breve, cuenta, hashtag), no una síntesis — indirect_evidence sintetiza, la lista no. Señal ambigua: no la fuerce en ninguna lista. active_abstention_signals: solo señales activas de desafección/rechazo (ej.: "no pienso votar", crítica sistemática a todos los candidatos); la ausencia de evidencia de voto es confidence: none, no una señal de abstención."""
+LISTAS ESTRUCTURADAS (left/right/center_signals, active_abstention_signals): cada entrada es una observación puntual (cita breve, cuenta, hashtag), no una síntesis — indirect_evidence sintetiza, la lista no. Señal ambigua: no la fuerce en ninguna lista. active_abstention_signals: solo señales activas de desafección/rechazo (ej.: "no pienso votar", crítica sistemática a todos los candidatos); la ausencia de evidencia de voto es confidence: none, no una señal de abstención.
+
+PROFILE_METADATA: "estimated_political_tweet_pct" es el porcentaje estimado (0-100) de los tweets del perfil (posts_combined) cuyo contenido se relaciona con política chilena (elecciones, candidatos, partidos, gobierno, políticas públicas) — cuente tweets propios y retweets con comentario; una estimación aproximada basada en inspección del historial es aceptable, no se requiere un conteo exacto."""
 
 arm_b_stage1_user_prompt = """Se presenta a continuación el perfil de X (Twitter) de un usuario chileno. Extraiga la evidencia observable según el esquema JSON de Stage 1.
 
@@ -259,16 +265,15 @@ Esquema Stage 1 (devuelva exactamente esta estructura):
   },
   "issues": {
     "most_important_issue": {
-      "direct_evidence": "<mención explícita de tema prioritario, o 'ninguna'>",
-      "indirect_evidence": "<indicios indirectos de temas de interés (frecuencia, tono), o 'ninguna'>",
+      "direct_evidence": "<mención explícita de cuál es, según el usuario, el problema más importante que enfrenta el país (Chile) hoy en día, o 'ninguna'>",
+      "indirect_evidence": "<indicios indirectos de qué problema del país le preocupa más (frecuencia, tono, temas recurrentes), o 'ninguna'>",
       "supporting_quotes": [],
       "confidence": "<high|medium|low|none>"
     }
   },
   "profile_metadata": {
     "richness": "<rich (>500 tweets)|moderate (50-500 tweets)|sparse (<50 tweets)>",
-    "estimated_political_tweet_pct": "<porcentaje estimado>",
-    "overall_inference_quality": "<alta|moderada|baja|muy baja>"
+    "estimated_political_tweet_pct": "<porcentaje estimado>"
   }
 }"""
 
@@ -276,15 +281,17 @@ Esquema Stage 1 (devuelva exactamente esta estructura):
 
 arm_b_stage2_system_prompt = """Usted es un predictor de respuestas de encuesta. Su tarea es predecir cómo respondería este usuario a un conjunto de preguntas de encuesta sobre política chilena, basándose ÚNICAMENTE en la hoja de evidencia extraída de su perfil (output de Stage 1).
 
+""" + REFERENCE_DATE_SENTENCE + """
+
 REGLAS ESTRICTAS:
 1. Base sus predicciones exclusivamente en la hoja de evidencia Stage 1. No use conocimiento general sobre demografía típica de Twitter en Chile.
 2. Adopte encuadre de proxy predictivo: "Dado lo que se observa en este perfil, esta persona tiene mayor probabilidad de responder..."
-3. Donde la evidencia en Stage 1 sea insuficiente (confidence 'none' o 'low' sin señales concretas), seleccione CANNOT_INFER (símbolo: "CI") en lugar de la categoría modal.
-4. CANNOT_INFER es una respuesta válida. Úsela cuando no haya evidencia de nivel medium o superior.
-5. No asigne CANNOT_INFER si hay evidencia de nivel medium o superior.
+3. Donde la evidencia en Stage 1 sea débil o indirecta (confidence 'low'), comprométase con la respuesta más plausible y refleje la incertidumbre en el puntaje de especulación, no en CANNOT_INFER.
+4. CANNOT_INFER es una respuesta válida únicamente cuando confidence sea 'none' y no exista ninguna señal relevante para la pregunta.
+5. No asigne CANNOT_INFER si existe cualquier señal relevante para la pregunta, aunque sea débil o indirecta.
 6. El output DEBE ser un JSON válido con la estructura del esquema Stage 2. No incluya texto fuera del JSON.
 7. Cada predicción DEBE incluir los campos: question (nombre canónico de la variable), symbol (código), category (etiqueta de la categoría), explanation, speculation (0-100), evidence_basis (campo de Stage 1 que sustenta la predicción). En explanation, explique qué características de la hoja de evidencia contribuyeron a su elección y a su nivel de especulación.
-8. Debe incluir una entrada en "predictions" para CADA una de las 34 claves del esquema. ¡USTED DEBE DAR UNA RESPUESTA PARA CADA PREGUNTA!
+8. Debe incluir una entrada en "predictions" para CADA una de las 35 claves del esquema. ¡USTED DEBE DAR UNA RESPUESTA PARA CADA PREGUNTA!
 
 REGLA DE INFERENCIA CONSERVADORA:
 Solo seleccione una categoría para edad, educación, ocupación, estado civil, ingresos u orientación política si la hoja de evidencia proporciona evidencia clara y directa.
@@ -293,15 +300,18 @@ No trate la ausencia de información como evidencia de abstención ni de una ide
 En particular, evite asignar automáticamente como respuesta predeterminada: edad 25–34, ocupación "Profesional", ideología = 5, o "no votaría".
 
 REGLA DE FORMATO CRÍTICA:
-- El campo symbol debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vcu2), sin paréntesis ni texto adicional.
+- El campo symbol debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vsv2), sin paréntesis ni texto adicional.
 - El campo category debe contener ÚNICAMENTE la descripción completa de la categoría, sin incluir el código.
 - Nunca mezcle código y descripción en el mismo campo.
+- Cuando symbol sea "CI", category debe ser exactamente "CANNOT_INFER" -- nunca repita "CI" en el campo category.
 
 Correcto:
 "symbol": "PP12", "category": "Evolución Política (EVOPOLI)"
+"symbol": "CI", "category": "CANNOT_INFER"
 
 Incorrecto:
 "symbol": "PP12)", "category": "PP12) Evolución Política (EVOPOLI)"
+"symbol": "CI", "category": "CI"
 
 NIVELES DE ESPECULACIÓN:
 Para cada símbolo/categoría seleccionado, indique el nivel de especulación involucrado en la selección en una escala de 0 (nada especulativo, cada elemento de la hoja de evidencia fue útil para la selección) a 100 (totalmente especulativo, no hay información relacionada con esta pregunta en la hoja de evidencia).
@@ -317,7 +327,13 @@ DISTINCIÓN OBLIGATORIA ENTRE TIPOS DE PREGUNTAS:
 - Preguntas geográficas (PERSONA_REAL, PERSONA_VIVE_CHILE, REGION, COMUNA): infiera la región y la comuna a partir de la evidencia cruda en demographics.location (direct_evidence, indirect_evidence, supporting_quotes) — el mismo proceso de razonamiento que emplea para cualquier otra pregunta. Para COMUNA, seleccione el código COMU que mejor corresponda de la lista completa de comunas incluida en la pregunta COMUNA.
 - Distinción NA vs CI en REGION y COMUNA: "NA" (símbolo y categoría literalmente "NA", no un código numerado de la lista) significa que la persona NO vive en Chile, según la regla de la pregunta PERSONA QUE VIVE EN CHILE. "CI" significa que la persona sí vive en Chile pero la evidencia es insuficiente para determinar la región/comuna específica (location.confidence 'none' en Stage 1). No use NA cuando corresponde CI, ni viceversa.
 
-DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD, SEXO, ORIENTACION_IDEOLOGICA, e INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA — y únicamente para estas cuatro — incluya además un campo "probability_distribution": un objeto JSON que asigna una probabilidad (0 a 1) a CADA símbolo posible de esa pregunta, incluyendo CI, sumando 1.0 en total. Ejemplo para EDAD: "probability_distribution": {{"AG1": 0.05, "AG2": 0.10, "AG3": 0.40, "AG4": 0.25, "AG5": 0.10, "AG6": 0.05, "AG7": 0.05, "CI": 0.00}}. No incluya este campo en ninguna otra pregunta."""
+REGLA SOBRE INTENCIÓN DE VOTO: Las preguntas de intención de voto (incluida la segunda vuelta) piden la preferencia política de esta persona, no si es elegible para votar. Si hay evidencia de residencia fuera de Chile o alguna otra duda sobre elegibilidad, esa duda NO debe traducirse en una respuesta de abstención ("no votó" / "no votaría"); responda igualmente según la preferencia política observada (ideología, simpatía partidaria, sentimiento hacia los candidatos), como si esta persona fuera a votar. Asigne CANNOT_INFER únicamente cuando no exista ninguna señal política relevante en el perfil — nunca como sustituto de una duda sobre residencia o elegibilidad.
+
+REGLA SOBRE CANNOT_INFER: Asigne CI únicamente cuando el perfil no contenga NINGUNA señal relevante para la pregunta. Si existe una señal débil o indirecta, comprométase con la respuesta más plausible y exprese su incertidumbre mediante el puntaje de especulación (y, en los resultados primarios, mediante la distribución de probabilidad) — no mediante CI.
+
+DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD, SEXO, ORIENTACION_IDEOLOGICA, e INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA — y únicamente para estas cuatro — incluya además un campo "probability_distribution": un objeto JSON que asigna una probabilidad (0 a 1) a CADA símbolo posible de esa pregunta, incluyendo CI, sumando 1.0 en total. Ejemplo para EDAD: "probability_distribution": {{"AG1": 0.20, "AG2": 0.45, "AG3": 0.25, "AG4": 0.10, "CI": 0.00}}. No incluya este campo en ninguna otra pregunta.
+
+CAMPOS DE RESUMEN (nivel superior, fuera de "predictions"): "cannot_infer_fields" debe listar las claves de pregunta (los mismos nombres usados en "predictions", ej. "EDAD", "PARTIDO_POLITICO") donde symbol es "CI". "high_speculation_fields" debe listar las claves de pregunta donde speculation > 70, consistente con la REGLA DE INFERENCIA CONSERVADORA. Ambas listas pueden quedar vacías ([]) si ninguna pregunta cumple el criterio."""
 
 _arm_b_stage2_user_prompt_template = """A continuación se presenta la hoja de evidencia (Stage 1) de este perfil. Basándose en ella, prediga las respuestas de encuesta.
 
@@ -325,7 +341,7 @@ _arm_b_stage2_user_prompt_template = """A continuación se presenta la hoja de e
 {stage_1_output_json}
 === FIN DE HOJA DE EVIDENCIA ===
 {ordering_note}
-Devuelva ÚNICAMENTE un objeto JSON válido con la siguiente estructura. Para cada pregunta, seleccione el símbolo más probable o "CI" (CANNOT_INFER) si la evidencia es insuficiente.
+Devuelva ÚNICAMENTE un objeto JSON válido con la siguiente estructura. Para cada pregunta, seleccione el símbolo más probable o "CI" (CANNOT_INFER) si la evidencia es insuficiente. Cuando symbol sea "CI", category debe ser exactamente "CANNOT_INFER" (nunca "CI").
 
 {
   "subject_id": "<subject_id de Stage 1>",
@@ -335,26 +351,27 @@ Devuelva ÚNICAMENTE un objeto JSON válido con la siguiente estructura. Para ca
     "PERSONA_VIVE_CHILE":                 {"question": "PERSONA_VIVE_CHILE",                 "symbol": "<PLC1|PLC2|CI>",                                        "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "demographics.location"},
     "REGION":                             {"question": "REGION",                             "symbol": "<REG1|REG2|REG3|REG4|REG5|REG6|REG7|REG8|REG9|REG10|REG11|REG12|REG13|REG14|REG15|REG16|NA|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "demographics.location"},
     "COMUNA":                             {"question": "COMUNA",                             "symbol": "<código COMU de la lista de la pregunta COMUNA|NA|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "demographics.location"},
-    "EDAD":                               {"question": "EDAD",                               "symbol": "<AG1|AG2|AG3|AG4|AG5|AG6|AG7|CI>",                      "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>", "probability_distribution": {"AG1": <0-1>, "AG2": <0-1>, "AG3": <0-1>, "AG4": <0-1>, "AG5": <0-1>, "AG6": <0-1>, "AG7": <0-1>, "CI": <0-1>}},
+    "EDAD":                               {"question": "EDAD",                               "symbol": "<AG1|AG2|AG3|AG4|CI>",                                  "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>", "probability_distribution": {"AG1": <0-1>, "AG2": <0-1>, "AG3": <0-1>, "AG4": <0-1>, "CI": <0-1>}},
     "SEXO":                               {"question": "SEXO",                               "symbol": "<S1|S2|CI>",                                            "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>", "probability_distribution": {"S1": <0-1>, "S2": <0-1>, "CI": <0-1>}},
-    "RANGO_INGRESOS_PERSONALES":          {"question": "RANGO_INGRESOS_PERSONALES",          "symbol": "<PINC1|PINC2|PINC3|PINC4|PINC5|PINC6|PINC7|PINC8|PINC9|PINC10|PINC11|PINC12|PINC13|PINC14|PINC15|PINC16|PINC17|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "RANGO_INGRESOS_PERSONALES":          {"question": "RANGO_INGRESOS_PERSONALES",          "symbol": "<PINC1|PINC2|PINC3|PINC4|PINC5|PINC6|PINC7|PINC8|PINC9|PINC10|PINC11|PINC12|PINC13|PINC14|PINC15|PINC16|PINC17|PINC18|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "RANGO_INGRESOS_HOGAR":               {"question": "RANGO_INGRESOS_HOGAR",               "symbol": "<HINC1|HINC2|HINC3|HINC4|HINC5|HINC6|HINC7|HINC8|HINC9|HINC10|HINC11|HINC12|HINC13|HINC14|HINC15|HINC16|HINC17|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "ESTADO_CIVIL":                       {"question": "ESTADO_CIVIL",                       "symbol": "<MAR1|MAR2|MAR3|MAR4|MAR5|CI>",                         "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "CALIFICACION_EDUCATIVA":             {"question": "CALIFICACION_EDUCATIVA",             "symbol": "<EDU1|EDU2|EDU3|EDU4|EDU5|EDU6|EDU7|EDU8|EDU9|EDU10|EDU11|EDU12|EDU13|EDU14|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "OCUPACION_ACTUAL":                   {"question": "OCUPACION_ACTUAL",                   "symbol": "<OCCUP1|OCCUP2|OCCUP3|OCCUP4|OCCUP5|OCCUP6|OCCUP7|OCCUP8|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "ORIENTACION_IDEOLOGICA":             {"question": "ORIENTACION_IDEOLOGICA",             "symbol": "<IoPoR1|IoPoR2|IoPoR3|IoPoR4|IoPoR5|IoPoR6|IoPoR7|IoPoR8|IoPoR9|IoPoR10|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>", "probability_distribution": {"IoPoR1": <0-1>, "IoPoR2": <0-1>, "IoPoR3": <0-1>, "IoPoR4": <0-1>, "IoPoR5": <0-1>, "IoPoR6": <0-1>, "IoPoR7": <0-1>, "IoPoR8": <0-1>, "IoPoR9": <0-1>, "IoPoR10": <0-1>, "CI": <0-1>}},
-    "PARTIDO_POLITICO":                   {"question": "PARTIDO_POLITICO",                   "symbol": "<PP1|PP2|PP3|PP4|PP5|PP6|PP7|PP8|PP9|PP10|PP11|PP12|PP13|PP14|PP15|PP16|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "PARTIDO_POLITICO":                   {"question": "PARTIDO_POLITICO",                   "symbol": "<PP1|PP2|PP3|PP4|PP5|PP6|PP7|PP8|PP9|PP10|PP11|PP12|PP13|PP14|PP15|PP16|PP17|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "AFINIDAD_PARTIDO":                   {"question": "AFINIDAD_PARTIDO",                   "symbol": "<Afi1|Afi2|Afi3|Afi4|Afi5|Afi6|Afi7|CI>",              "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "INTERES_POLITICA":                   {"question": "INTERES_POLITICA",                   "symbol": "<INTP1|INTP2|INTP3|INTP4|CI>",                          "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "ATENCION_CAMPANA_2025":              {"question": "ATENCION_CAMPANA_2025",              "symbol": "<ATT25_1|ATT25_2|ATT25_3|ATT25_4|CI>",                  "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "ATENCION_CAMPANA_2021":              {"question": "ATENCION_CAMPANA_2021",              "symbol": "<ATT21_1|ATT21_2|ATT21_3|ATT21_4|CI>",                  "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "CONFIANZA_GENERAL":                  {"question": "CONFIANZA_GENERAL",                  "symbol": "<TRUS1|TRUS2|TRUS3|TRUS4|TRUS5|CI>",                    "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
-    "PARTICIPACION_PRESIDENCIAL_2021":    {"question": "PARTICIPACION_PRESIDENCIAL_2021",    "symbol": "<Thpa1|Thpa2|Thpa3|Thpa4|Thpa5|Thpa6|Thpa7|CI>",       "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "PARTICIPACION_PRESIDENCIAL_2021":    {"question": "PARTICIPACION_PRESIDENCIAL_2021",    "symbol": "<Thpa1|Thpa2|Thpa3|CI>",                                "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "VOTO_PRESIDENCIAL_2021":             {"question": "VOTO_PRESIDENCIAL_2021",             "symbol": "<Vpa1|Vpa2|Vpa3|Vpa4|Vpa5|Vpa6|Vpa7|Vpa8|CI>",         "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "VOTO_BALLOTAGE_2021":                {"question": "VOTO_BALLOTAGE_2021",                "symbol": "<Vba1|Vba2|Vba3|Vba4|CI>",                              "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "INDV_PARTICIPACION_LEGISLATIVA_2021":{"question": "INDV_PARTICIPACION_LEGISLATIVA_2021","symbol": "<Tpaindv1|Tpaindv2|Tpaindv3|Tpaindv4|Tpaindv5|Tpaindv6|Tpaindv7|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "INDV_VOTO_LEGISLATIVO_2021":         {"question": "INDV_VOTO_LEGISLATIVO_2021",         "symbol": "<Vpaindv1|Vpaindv2|Vpaindv3|Vpaindv4|Vpaindv5|Vpaindv6|Vpaindv7|Vpaindv8|Vpaindv9|Vpaindv10|Vpaindv11|Vpaindv12|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
-    "INDV_PARTICIPACION_2025":            {"question": "INDV_PARTICIPACION_2025",            "symbol": "<Tcuindv1|Tcuindv2|Tcuindv3|Tcuindv4|Tcuindv5|Tcuindv6|Tcuindv7|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
-    "INDV_INTENCION_VOTO_2025":           {"question": "INDV_INTENCION_VOTO_2025",           "symbol": "<Vcuindv1|Vcuindv2|Vcuindv3|Vcuindv4|Vcuindv5|Vcuindv6|Vcuindv7|Vcuindv8|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "INDV_PARTICIPACION_2025":            {"question": "INDV_PARTICIPACION_2025",            "symbol": "<Tcuindv1|Tcuindv2|Tcuindv3|CI>",                       "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
+    "INDV_INTENCION_VOTO_2025":           {"question": "INDV_INTENCION_VOTO_2025",           "symbol": "<Vcuindv1|Vcuindv2|Vcuindv3|Vcuindv4|Vcuindv5|Vcuindv6|Vcuindv7|Vcuindv8|Vcuindv9|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA": {"question": "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA", "symbol": "<Vsv1|Vsv2|Vsv3|Vsv4|Vsv5|CI>",                          "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>", "probability_distribution": {"Vsv1": <0-1>, "Vsv2": <0-1>, "Vsv3": <0-1>, "Vsv4": <0-1>, "Vsv5": <0-1>, "CI": <0-1>}},
     "INDECISION_2025":                    {"question": "INDECISION_2025",                    "symbol": "<Und1|Und2|Und3|Und4|Und5|Und6|Und7|CI>",               "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
     "FAVORABILIDAD_KAST":                 {"question": "FAVORABILIDAD_KAST",                 "symbol": "<Kfa1|Kfa2|Kfa3|Kfa4|Kfa5|CI>",                         "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"},
@@ -367,8 +384,7 @@ Devuelva ÚNICAMENTE un objeto JSON válido con la siguiente estructura. Para ca
     "TEMA_MAS_IMPORTANTE":                {"question": "TEMA_MAS_IMPORTANTE",                "symbol": "<Moi01|Moi02|Moi03|Moi04|Moi05|Moi06|Moi07|Moi08|Moi09|CI>", "category": "<texto>", "explanation": "<justificación breve>", "speculation": <0-100>, "evidence_basis": "<campo Stage 1>"}
   },
   "cannot_infer_fields": [],
-  "high_speculation_fields": [],
-  "overall_confidence": "<alta|moderada|baja|muy baja>"
+  "high_speculation_fields": []
 }
 
 ¡USTED DEBE DAR UNA RESPUESTA PARA CADA TÍTULO!
@@ -422,10 +438,12 @@ _STAGE2_QUESTIONS = [
      "VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021", "vote"),
     ("VPA", "VOTO_PRESIDENCIAL_2021",
      "VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021", "vote"),
+    ("VBA", "VOTO_BALLOTAGE_2021",
+     "VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021", "vote"),
     ("TCUINDV", "INDV_PARTICIPACION_2025",
      "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025", "vote"),
     ("VCUINDV", "INDV_INTENCION_VOTO_2025",
-     "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025", "vote"),
+     "(INDV) VOTACIÓN ACTUAL – OPCIÓN DE VOTO EN LA PRIMERA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025", "vote"),
     ("VSV", "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA",
      "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025", "vote"),
     ("INDECISION", "INDECISION_2025",
@@ -447,7 +465,24 @@ _STAGE2_QUESTIONS = [
     ("MAS_IMPORTANTE", "TEMA_MAS_IMPORTANTE",
      "CREENCIA SOBRE EL TEMA MÁS IMPORTANTE ACTUALMENTE", "vote"),
 ]
-assert len(_STAGE2_QUESTIONS) == 34
+assert len(_STAGE2_QUESTIONS) == 35
+
+# Arm A's verbatim question titles, split by which of Arm A's two calls asks
+# them. Passed to extract_llm_responses(canonical_labels=...) so a title the
+# model echoes back with different casing lands on the canonical column --
+# the same treatment Arm D already gets via ARM_D_QUESTION_LABELS. Kept
+# arm-specific on purpose: the baseline arm asks "OCUPACIÓN ACUTAL" (sic) and
+# must keep doing so, or the two arms stop being comparable.
+ARM_A_GEO_QUESTION_LABELS = [q[2] for q in _STAGE2_QUESTIONS if q[3] == "geo"]
+ARM_A_VOTE_QUESTION_LABELS = [q[2] for q in _STAGE2_QUESTIONS if q[3] == "vote"]
+assert len(ARM_A_GEO_QUESTION_LABELS) == 4
+assert len(ARM_A_VOTE_QUESTION_LABELS) == 31
+
+# Canonical Stage 2 JSON keys (Arms B/C), for key-format validation in
+# src/utils.py::extract_json_predictions. Note these are the json_key values,
+# NOT the opt_key values CANONICAL_OPTIONS is keyed by.
+STAGE2_JSON_KEYS = tuple(q[1] for q in _STAGE2_QUESTIONS)
+assert len(set(STAGE2_JSON_KEYS)) == 35
 
 # CI escape line per question (guide §4). 2026-07-30: standardized to a
 # single uniform line for every question -- symbol exactly "CI)", category
@@ -461,7 +496,7 @@ _CI_LINES = {
         "PERSONA_REAL", "PERSONA_VIVE_CHILE", "REGION", "COMUNA", "EDAD",
         "SEXO", "PINC", "HINC", "ESTADO_CIVIL", "EDUCACION", "OCUPACION",
         "IDEOLOGIA", "PARTIDO", "AFINIDAD", "INTERES", "ATT2025", "ATT2021",
-        "CONFIANZA", "THPA", "VPA", "TPAINDV_LEG", "VPAINDV_LEG", "TCUINDV",
+        "CONFIANZA", "THPA", "VPA", "VBA", "TPAINDV_LEG", "VPAINDV_LEG", "TCUINDV",
         "VCUINDV", "VSV", "INDECISION", "FAV_KAST", "FAV_JARA", "FAV_MATTHEI",
         "FAV_PARISI", "FAV_MEO", "FAV_ARTES", "FAV_KAISER", "MAS_IMPORTANTE",
     ]
@@ -545,7 +580,7 @@ for _opt_key, _json_key, _title, _src in _STAGE2_QUESTIONS:
     _block += "\n{options_" + _opt_key + "}"
     _question_blocks.append(_block)
 
-assert len(CANONICAL_OPTIONS) == 33
+assert len(CANONICAL_OPTIONS) == 34
 _QUESTION_BLOCKS_TEXT = "\n\n".join(_question_blocks)
 
 

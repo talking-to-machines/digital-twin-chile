@@ -28,6 +28,7 @@ from src.utils import (
     extract_json_predictions,
     perform_profile_interview,
     coalesce_columns_by_regex,
+    validate_stage2_prediction_keys,
 )
 from prompts.prompt_template_arm_c import SHUFFLEABLE_KEYS
 from prompts.prompt_template_arm_d import ARM_D_QUESTION_LABELS
@@ -54,6 +55,7 @@ def conduct_entity_geographic_interview(
     entity_patterns: list,
     include_profile_info: bool = True,
     enable_web_search: bool = True,
+    entity_labels: list = None,
 ) -> None:
     perform_profile_interview(
         project_name=project_name,
@@ -76,7 +78,7 @@ def conduct_entity_geographic_interview(
     )
     extracted_responses = post_interview_results[
         "x_digital_twin_entity_geographic_llm_response"
-    ].apply(extract_llm_responses)
+    ].apply(extract_llm_responses, canonical_labels=entity_labels)
     post_interview_results = pd.concat(
         [post_interview_results, extracted_responses], axis=1
     )
@@ -125,6 +127,7 @@ def conduct_voting_preference_interview_without_voting_results(
     treatment_arm: str,
     include_profile_info: bool = True,
     enable_web_search: bool = True,
+    voting_labels: list = None,
 ) -> None:
     perform_profile_interview(
         project_name=project_name,
@@ -148,7 +151,7 @@ def conduct_voting_preference_interview_without_voting_results(
     )
     extracted_responses = post_interview_results[
         "x_digital_twin_voting_preference_wo_voting_results_llm_response"
-    ].apply(extract_llm_responses)
+    ].apply(extract_llm_responses, canonical_labels=voting_labels)
     post_interview_results = pd.concat(
         [post_interview_results, extracted_responses], axis=1
     )
@@ -376,6 +379,9 @@ def conduct_two_stage_json_interview(
 
     stage2_df.to_csv(stage2_path, index=False)
 
+    # Raise only after the output is safely on disk (see the docstring).
+    validate_stage2_prediction_keys(stage2_df)
+
     # Stage 2's file now carries every Stage 1 column forward (evidence JSON,
     # profile fields, the built Stage 2 user prompt) plus its own predictions,
     # so the standalone Stage 1 CSV is a duplicate final artifact. Drop it.
@@ -528,6 +534,7 @@ if __name__ == "__main__":
             entity_patterns=arm_cfg["entity_patterns"],
             include_profile_info=include_profile_info,
             enable_web_search=enable_web_search,
+            entity_labels=arm_cfg.get("entity_labels"),
         )
 
         print("Step 3: Voting-preference interview (without voting results).")
@@ -542,6 +549,7 @@ if __name__ == "__main__":
             treatment_arm=treatment_arm,
             include_profile_info=include_profile_info,
             enable_web_search=enable_web_search,
+            voting_labels=arm_cfg.get("voting_labels"),
         )
 
     elif architecture == ARCH_ONE_CALL_REGEX:
