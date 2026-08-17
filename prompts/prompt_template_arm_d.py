@@ -58,8 +58,11 @@ Output format, Call 1 (one block of THREE lines per question):
 
 2026-07-27 content revisions shared with the other arms:
   - PP16 (Movimiento Amarillos Por Chile) added to the party code space; the
-    fielded Q3.1 offers it. "No me identifico con un partido" remains
-    unmapped (open team decision).
+    fielded Q3.1 offers it.
+
+2026-08-02/03 content revisions shared with the other arms (Ray's memo):
+  - PP17 (No me identifico con un partido) added to the party code space,
+    closing the item open since 27 Jul.
   - COMUNA is coded into the same COMU1-COMU346 space as Arms A/B/C. The
     free-text ELICITATION never sees codes (spec-compliant); the post-hoc
     MAPPER receives the full comuna list (imported from arm_b's programmatic
@@ -80,6 +83,8 @@ pending a separate decision.
 """
 
 import os
+
+from config.digital_twin_config import REFERENCE_DATE_SENTENCE
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -104,7 +109,7 @@ Hashtags: {hashtags}"""
 
 # ─── Call 1 — Sparse free-text elicitation ────────────────────────────────────
 
-arm_d_system_prompt = """Usted está analizando un perfil de X (Twitter) de un usuario chileno.
+arm_d_system_prompt = f"""Usted está analizando un perfil de X (Twitter) de un usuario chileno.
 Prediga cómo respondería esta persona a las preguntas de una encuesta política chilena.
 Use únicamente la información disponible en el perfil. Responda en texto libre, breve y natural,
 incluyendo siempre una breve justificación de su respuesta dentro de response (excepto cuando la
@@ -115,11 +120,21 @@ Escriba "CI" como respuesta cuando el perfil no proporcione información suficie
 En speculation, indique con un puntaje de 0 a 100 cuánto especuló para llegar a su respuesta
 (0 = evidencia directa en el perfil, 100 = conjetura pura sin evidencia).
 
+{REFERENCE_DATE_SENTENCE}
+
+Para las preguntas de intención de voto (incluida la segunda vuelta): piden la preferencia
+política de esta persona, no si es elegible para votar. Si hay evidencia de residencia fuera de
+Chile o alguna otra duda sobre elegibilidad, esa duda NO debe traducirse en una respuesta de
+abstención ("no votó" / "no votaría"); responda igualmente según la preferencia política
+observada (ideología, simpatía partidaria, sentimiento hacia los candidatos), como si esta
+persona fuera a votar. Escriba "CI" únicamente cuando no exista ninguna señal política relevante
+en el perfil — nunca como sustituto de una duda sobre residencia o elegibilidad.
+
 Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio
 y al final. Cada línea debe comenzar con el nombre del campo tal como en el ejemplo, seguido
 de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales. Ejemplo:
 **question: EDAD**
-**response: 25 a 34 años**
+**response: 30 a 44 años**
 **speculation: 30**"""
 
 arm_d_user_prompt = """A continuación se presenta el perfil de X de un usuario chileno.
@@ -172,10 +187,11 @@ ATENCION_CAMPANA_2021 — ¿Cuánta atención prestó a la campaña para las ele
 CONFIANZA_GENERAL — ¿Cree que se puede confiar en la mayoría de las personas, o que hay que ser muy cuidadoso?
 PARTICIPACION_PRESIDENCIAL_2021 — ¿Votó esta persona en las elecciones presidenciales de 2021?
 VOTO_PRESIDENCIAL_2021 — ¿Por quién votó en las elecciones presidenciales de 2021?
+VOTO_BALLOTAGE_2021 — ¿Por quién votó en la segunda vuelta de las elecciones presidenciales de 2021?
 INDV_PARTICIPACION_LEGISLATIVA_2021 — ¿Votó en las elecciones legislativas de 2021?
 INDV_VOTO_LEGISLATIVO_2021 — ¿Por qué partido o lista votó en las elecciones legislativas de 2021?
-INDV_PARTICIPACION_2025 — ¿Votará en las elecciones presidenciales de 2025?
-INDV_INTENCION_VOTO_2025 — ¿Por quién votaría en las elecciones presidenciales de 2025?
+INDV_PARTICIPACION_2025 — El 16 de noviembre de 2025 se realizaron las elecciones presidenciales en Chile. ¿Votó esta persona en la primera vuelta de esta elección?
+INDV_INTENCION_VOTO_2025 — El 16 de noviembre de 2025 se realizaron las elecciones presidenciales en Chile. ¿Por quién votó en la primera vuelta de esta elección?
 INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA — Ahora le preguntaremos sobre la segunda vuelta de las elecciones presidenciales, que se realizará el próximo domingo 14 de diciembre de 2025. Si las elecciones presidenciales fueran hoy, ¿por cuál de los siguientes candidatos votaría: Jeannette Jara o José Antonio Kast? (o si votaría nulo/blanco, no votaría, o no está seguro/a)
 INDECISION_2025 — ¿Qué tan probable es que cambie su intención de voto antes de las elecciones de 2025?
 FAVORABILIDAD_KAST — ¿Qué opinión tiene de José Antonio Kast?
@@ -217,6 +233,7 @@ ARM_D_QUESTION_LABELS = [
     "CONFIANZA_GENERAL",
     "PARTICIPACION_PRESIDENCIAL_2021",
     "VOTO_PRESIDENCIAL_2021",
+    "VOTO_BALLOTAGE_2021",
     "INDV_PARTICIPACION_LEGISLATIVA_2021",
     "INDV_VOTO_LEGISLATIVO_2021",
     "INDV_PARTICIPACION_2025",
@@ -261,7 +278,7 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "COMUNA",
     },
     "EDAD": {
-        "code_space": "AG1=<18, AG2=18-24, AG3=25-34, AG4=35-44, AG5=45-54, AG6=55-64, AG7=65+",
+        "code_space": "AG1=18-29, AG2=30-44, AG3=45-64, AG4=65+",
         "arm_a_field": "EDAD",
     },
     "SEXO": {
@@ -269,7 +286,7 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "SEXO",
     },
     "RANGO_INGRESOS_PERSONALES": {
-        "code_space": "PINC1=$0-35k … PINC17=+$20M",
+        "code_space": "PINC1=$0-35k … PINC18=+$20M",
         "arm_a_field": "RANGO DE INGRESOS PERSONALES",
     },
     "RANGO_INGRESOS_HOGAR": {
@@ -293,7 +310,7 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "ORIENTACIÓN IDEOLÓGICA O POLÍTICA",
     },
     "PARTIDO_POLITICO": {
-        "code_space": "PP1=Republicano, PP2=RN, PP3=FA, PP4=PC, PP5=PS, PP6=DC, PP7=UDI, PP8=PPD, PP9=PDG, PP10=Liberal, PP11=Demócratas Chile, PP12=EVOPOLI, PP13=Social Cristiano, PP14=Radical, PP15=FRVS, PP16=Amarillos",
+        "code_space": "PP1=Republicano, PP2=RN, PP3=FA, PP4=PC, PP5=PS, PP6=DC, PP7=UDI, PP8=PPD, PP9=PDG, PP10=Liberal, PP11=Demócratas Chile, PP12=EVOPOLI, PP13=Social Cristiano, PP14=Radical, PP15=FRVS, PP16=Amarillos, PP17=No me identifico",
         "arm_a_field": "PARTIDO POLÍTICO",
     },
     "AFINIDAD_PARTIDO": {
@@ -317,12 +334,16 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "CONFIANZA GENERAL EN OTRAS PERSONAS",
     },
     "PARTICIPACION_PRESIDENCIAL_2021": {
-        "code_space": "Thpa1(prob=0) … Thpa7(prob=1)",
+        "code_space": "Thpa1=Sí, Thpa2=No, Thpa3=No recuerda",
         "arm_a_field": "VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021",
     },
     "VOTO_PRESIDENCIAL_2021": {
         "code_space": "Vpa1=no votó, Vpa2=Boric, Vpa3=Kast, Vpa4=Provoste, Vpa5=Sichel, Vpa6=Artés, Vpa7=MEO, Vpa8=Parisi",
         "arm_a_field": "VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021",
+    },
+    "VOTO_BALLOTAGE_2021": {
+        "code_space": "Vba1=no votó, Vba2=Boric, Vba3=Kast, Vba4=no recuerda",
+        "arm_a_field": "VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021",
     },
     "INDV_PARTICIPACION_LEGISLATIVA_2021": {
         "code_space": "Tpaindv1(prob=0) … Tpaindv7(prob=1)",
@@ -333,12 +354,12 @@ ARM_D_CANONICAL_MAP = {
         "arm_a_field": "(INDV) VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES LEGISLATIVAS DE CHILE DE 2021",
     },
     "INDV_PARTICIPACION_2025": {
-        "code_space": "Tcuindv1(prob=0) … Tcuindv7(prob=1)",
+        "code_space": "Tcuindv1=Sí, Tcuindv2=No, Tcuindv3=No recuerda",
         "arm_a_field": "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025",
     },
     "INDV_INTENCION_VOTO_2025": {
-        "code_space": "Vcuindv1=no votaría, Vcuindv2=Jara, Vcuindv3=Kast, Vcuindv4=Matthei, Vcuindv5=Kaiser, Vcuindv6=Parisi, Vcuindv7=MEO, Vcuindv8=Artés",
-        "arm_a_field": "(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025",
+        "code_space": "Vcuindv1=no votó, Vcuindv2=Jara, Vcuindv3=Kast, Vcuindv4=Matthei, Vcuindv5=Kaiser, Vcuindv6=Parisi, Vcuindv7=MEO, Vcuindv8=Artés, Vcuindv9=Mayne-Nicholls",
+        "arm_a_field": "(INDV) VOTACIÓN ACTUAL – OPCIÓN DE VOTO EN LA PRIMERA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025",
     },
     "INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA": {
         "code_space": "Vsv1=Jara, Vsv2=Kast, Vsv3=nulo/blanco, Vsv4=no votaría, Vsv5=no está seguro(a)",
@@ -425,26 +446,27 @@ PERSONA_REAL: RP1) Persona real | RP2) Otro (bot, organización, cuenta ficticia
 PERSONA_VIVE_CHILE: PLC1) Sí | PLC2) No
 REGION: REG1) Antofagasta | REG2) Arica y Parinacota | REG3) Atacama | REG4) Aysén | REG5) Coquimbo | REG6) Araucanía | REG7) Los Lagos | REG8) Los Ríos | REG9) Magallanes | REG10) Tarapacá | REG11) Valparaíso | REG12) Ñuble | REG13) Biobío | REG14) O'Higgins | REG15) Maule | REG16) Metropolitana de Santiago | REG17) NA — no vive en Chile o región desconocida
 COMUNA: seleccione el código COMU de la lista completa al final del prompt, o CI
-EDAD: AG1) Menor de 18 años | AG2) De 18 a 24 años | AG3) De 25 a 34 años | AG4) De 35 a 44 años | AG5) De 45 a 54 años | AG6) De 55 a 64 años | AG7) 65 años o más
+EDAD: AG1) De 18 a 29 años | AG2) De 30 a 44 años | AG3) De 45 a 64 años | AG4) 65 años o más
 SEXO: S1) Masculino | S2) Femenino
-RANGO_INGRESOS_PERSONALES: PINC1) $0-$35.000 | PINC2) $35.001-$60.000 | PINC3) $60.001-$100.000 | PINC4) $100.001-$200.000 | PINC5) $200.001-$350.000 | PINC6) $350.001-$500.000 | PINC7) $500.001-$750.000 | PINC8) $750.001-$1.000.000 | PINC9) $1.000.001-$1.500.000 | PINC10) $1.500.001-$2.000.000 | PINC11) $2.000.001-$3.000.000 | PINC12) $3.000.001-$5.000.000 | PINC13) $5.000.001-$7.500.000 | PINC14) $7.500.001-$10.000.000 | PINC15) $10.000.001-$15.000.000 | PINC16) $15.000.001-$20.000.000 | PINC17) Más de $20.000.000
+RANGO_INGRESOS_PERSONALES: PINC1) $0-$35.000 | PINC2) $35.001-$100.000 | PINC3) $100.001-$210.000 | PINC4) $210.001-$350.000 | PINC5) $350.001-$500.000 | PINC6) $500.001-$700.000 | PINC7) $700.001-$900.000 | PINC8) $900.001-$1.200.000 | PINC9) $1.200.001-$1.500.000 | PINC10) $1.500.001-$1.800.000 | PINC11) $1.800.001-$2.500.000 | PINC12) $2.500.001-$3.500.000 | PINC13) $3.500.001-$5.000.000 | PINC14) $5.000.001-$7.000.000 | PINC15) $7.000.001-$10.000.000 | PINC16) $10.000.001-$15.000.000 | PINC17) $15.000.001-$20.000.000 | PINC18) Más de $20.000.000
 RANGO_INGRESOS_HOGAR: HINC1) $0-$35.000 | HINC2) $35.001-$60.000 | HINC3) $60.001-$100.000 | HINC4) $100.001-$200.000 | HINC5) $200.001-$350.000 | HINC6) $350.001-$500.000 | HINC7) $500.001-$750.000 | HINC8) $750.001-$1.000.000 | HINC9) $1.000.001-$1.500.000 | HINC10) $1.500.001-$2.000.000 | HINC11) $2.000.001-$3.000.000 | HINC12) $3.000.001-$5.000.000 | HINC13) $5.000.001-$7.500.000 | HINC14) $7.500.001-$10.000.000 | HINC15) $10.000.001-$15.000.000 | HINC16) $15.000.001-$20.000.000 | HINC17) Más de $20.000.000
 ESTADO_CIVIL: MAR1) Casado(a) | MAR2) Separado(a) | MAR3) Soltero(a) | MAR4) Divorciado(a) | MAR5) Viudo(a)
 CALIFICACION_EDUCATIVA: EDU1) Sala Cuna o Jardín Infantil | EDU2) PreKinder | EDU3) Kinder | EDU4) Especial o Diferencial | EDU5) Primaria o Preparatoria (sistema antiguo) | EDU6) Educación Básica | EDU7) Científico-Humanista | EDU8) Técnica Profesional | EDU9) Humanidades (sistema antiguo) | EDU10) Técnico Nivel Superior (carreras 1-4 años) | EDU11) Profesional (carreras 1-6 años) | EDU12) Magíster | EDU13) Doctorado | EDU14) Nunca asistió
 OCUPACION_ACTUAL: OCCUP1) Patrón o dueño de empresa o negocio | OCCUP2) Trabajador por cuenta propia | OCCUP3) Empleado u obrero del sector público | OCCUP4) Empleado u obrero de empresas públicas | OCCUP5) Empleado u obrero del sector privado | OCCUP6) Fuerzas Armadas, de Orden y Seguridad | OCCUP7) Servicio doméstico puertas adentro | OCCUP8) Servicio doméstico puertas afuera
 ORIENTACION_IDEOLOGICA: IoPoR1) 1 (Izquierda) | IoPoR2) 2 | IoPoR3) 3 | IoPoR4) 4 | IoPoR5) 5 (Centro) | IoPoR6) 6 | IoPoR7) 7 | IoPoR8) 8 | IoPoR9) 9 | IoPoR10) 10 (Derecha)
-PARTIDO_POLITICO: PP1) Partido Republicano | PP2) Renovación Nacional (RN) | PP3) Frente Amplio | PP4) Partido Comunista (PC) | PP5) Partido Socialista (PS) | PP6) Democracia Cristiana (DC) | PP7) Unión Demócrata Independiente (UDI) | PP8) Partido Por la Democracia (PPD) | PP9) Partido de la Gente (PDG) | PP10) Partido Liberal | PP11) Partido Demócratas Chile | PP12) Evolución Política (EVOPOLI) | PP13) Partido Social Cristiano | PP14) Partido Radical (PR) | PP15) Frente Regionalista Verde Social (FRVS) | PP16) Movimiento Amarillos Por Chile
+PARTIDO_POLITICO: PP1) Partido Republicano | PP2) Renovación Nacional (RN) | PP3) Frente Amplio | PP4) Partido Comunista (PC) | PP5) Partido Socialista (PS) | PP6) Democracia Cristiana (DC) | PP7) Unión Demócrata Independiente (UDI) | PP8) Partido Por la Democracia (PPD) | PP9) Partido de la Gente (PDG) | PP10) Partido Liberal | PP11) Partido Demócratas Chile | PP12) Evolución Política (EVOPOLI) | PP13) Partido Social Cristiano | PP14) Partido Radical (PR) | PP15) Frente Regionalista Verde Social (FRVS) | PP16) Movimiento Amarillos Por Chile | PP17) No me identifico con un partido
 AFINIDAD_PARTIDO: Afi1) Ninguna simpatía | Afi2) | Afi3) | Afi4) | Afi5) | Afi6) | Afi7) Mucha simpatía
 INTERES_POLITICA: INTP1) Muy interesado(a) | INTP2) Algo interesado(a) | INTP3) Poco interesado(a) | INTP4) Nada interesado(a)
 ATENCION_CAMPANA_2025: ATT25_1) Mucho | ATT25_2) Algo | ATT25_3) Un poco | ATT25_4) Nada
 ATENCION_CAMPANA_2021: ATT21_1) Mucho | ATT21_2) Algo | ATT21_3) Un poco | ATT21_4) Nada
 CONFIANZA_GENERAL: TRUS1) Siempre confío en otras personas | TRUS2) La mayor parte del tiempo confío | TRUS3) Aproximadamente la mitad del tiempo confío | TRUS4) Algunas veces confío | TRUS5) Nunca confío
-PARTICIPACION_PRESIDENCIAL_2021: Thpa1) No hay posibilidad de que haya votado (prob=0) | Thpa2) Muy improbable (0,15) | Thpa3) Improbable (0,3) | Thpa4) 50% de probabilidades (0,5) | Thpa5) Probable (0,7) | Thpa6) Muy probable (0,85) | Thpa7) Certeza de que votó (prob=1)
+PARTICIPACION_PRESIDENCIAL_2021: Thpa1) Sí, votó | Thpa2) No votó | Thpa3) No recuerda
 VOTO_PRESIDENCIAL_2021: Vpa1) No votó | Vpa2) Gabriel Boric | Vpa3) José Antonio Kast | Vpa4) Yasna Provoste | Vpa5) Sebastián Sichel | Vpa6) Eduardo Artés | Vpa7) Marco Enríquez-Ominami | Vpa8) Franco Parisi
+VOTO_BALLOTAGE_2021: Vba1) No votó | Vba2) Gabriel Boric | Vba3) José Antonio Kast | Vba4) No recuerda
 INDV_PARTICIPACION_LEGISLATIVA_2021: Tpaindv1) No hay posibilidad de que haya votado (prob=0) | Tpaindv2) Muy improbable (0,15) | Tpaindv3) Poco probable (0,3) | Tpaindv4) 50% de probabilidades (0,5) | Tpaindv5) Probable (0,7) | Tpaindv6) Muy probable (0,85) | Tpaindv7) Certeza de que votó (prob=1)
 INDV_VOTO_LEGISLATIVO_2021: Vpaindv1) No votó | Vpaindv2) Convergencia Social (CS) | Vpaindv3) Revolución Democrática (RD) | Vpaindv4) Partido Comunista (PC) | Vpaindv5) PDC | Vpaindv6) PPD | Vpaindv7) UDI | Vpaindv8) RN | Vpaindv9) Partido Republicano | Vpaindv10) PDG | Vpaindv11) PRO | Vpaindv12) Independiente
-INDV_PARTICIPACION_2025: Tcuindv1) No hay posibilidad de que vaya a votar (prob=0) | Tcuindv2) Muy improbable (0,15) | Tcuindv3) Improbable (0,3) | Tcuindv4) 50% de probabilidades (0,5) | Tcuindv5) Probable (0,7) | Tcuindv6) Muy probable (0,85) | Tcuindv7) Certeza de que irá a votar (prob=1)
-INDV_INTENCION_VOTO_2025: Vcuindv1) No votaría | Vcuindv2) Jeannette Jara | Vcuindv3) José Antonio Kast | Vcuindv4) Evelyn Matthei | Vcuindv5) Johannes Kaiser | Vcuindv6) Franco Parisi | Vcuindv7) Marco Enríquez-Ominami | Vcuindv8) Eduardo Artés
+INDV_PARTICIPACION_2025: Tcuindv1) Sí, votó | Tcuindv2) No votó | Tcuindv3) No recuerda
+INDV_INTENCION_VOTO_2025: Vcuindv1) No votó | Vcuindv2) Jeannette Jara | Vcuindv3) José Antonio Kast | Vcuindv4) Evelyn Matthei | Vcuindv5) Johannes Kaiser | Vcuindv6) Franco Parisi | Vcuindv7) Marco Enríquez-Ominami | Vcuindv8) Eduardo Artés | Vcuindv9) Harold Mayne-Nicholls
 INDECISION_2025: Und1) No hay posibilidad de cambio (prob=0) | Und2) Muy improbable que cambie (0,15) | Und3) Poco probable que cambie (0,3) | Und4) 50% de probabilidades de cambio (0,5) | Und5) Probable que cambie (0,7) | Und6) Muy probable que cambie (0,85) | Und7) Certeza de que cambiará (prob=1)
 FAVORABILIDAD_KAST: Kfa1) Opinión muy favorable | Kfa2) Algo favorable | Kfa3) Algo desfavorable | Kfa4) Muy desfavorable | Kfa5) Desconoce al candidato
 FAVORABILIDAD_JARA: Jfa1) Opinión muy favorable | Jfa2) Algo favorable | Jfa3) Algo desfavorable | Jfa4) Muy desfavorable | Jfa5) Desconoce a la candidata

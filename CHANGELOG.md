@@ -11,8 +11,420 @@ comments there.
 
 ## Unreleased / planned
 
-- None currently — see "2026-07-30" below for the four items that were
-  planned as of earlier today and are now implemented.
+- Follow-up (not done here, tracked separately): fix the Dropbox-side QA
+  script's (`scripts/analysis/06_pilot_comparison_smoke_test_qa_round2_matias.Rmd`)
+  B/C Stage-1 divergence check and `code_specs` regexes (widen PINC to
+  PINC1-18, add `Vsv` and `Vba` rows) per Ray's 2026-08-02 memo. Out of scope
+  for this repo/commit by instruction.
+- **Municipal electoral-data retrieval: not wired into the driver (guide
+  §9.4).** `arm_b_municipal_web_instruction` / `arm_c_municipal_web_instruction`
+  (`prompts/prompt_template_arm_b.py`) already implement the intended
+  *input*-side instruction correctly: if Stage 1 evidence supports a comuna at
+  `confidence: medium` or higher, retrieve that comuna's 2021 electoral
+  results via web search and use them as additional context for the
+  individual-level vote/turnout predictions — text is explicitly scoped
+  "solo con búsqueda web habilitada" (information condition 4 only). Nothing
+  in `src/digital_twin_chile_x.py` currently appends this instruction to the
+  Stage 2 system prompt when `enable_web_search=True`, so it has no effect at
+  runtime. To do, after the architecture pilot selects a production
+  architecture: wire this into the driver for that architecture, gated on
+  `enable_web_search`. Until wired, no arm retrieves or uses actual electoral
+  results as a prediction input. (This supersedes the six now-removed
+  `*_COMUNAL` output questions, which used the same guide instruction as a
+  source for extra output items rather than as prediction context — see the
+  2026-07-27 revision note in `prompt_template_arm_b.py` and QA report 06.)
+
+## 2026-08-15 (CANNOT_INFER scope — safety-valve review, Step 2)
+
+Per `admin/memos/Memo_SafetyValve_Review_2026.08.12.docx` §4 (Ray, 12 Aug), the
+documented template review triggered when the architecture pilot's registered
+safety valve fired on CANNOT_INFER rates (A 80.1%, B 60.5%, C 59.5%, all above
+the 40% threshold). The memo's §2 split the inflation into (a) sample
+composition — citing a 5 Aug audit figure of "52% of accounts have ZERO posts
+at the Dec-13 cutoff" — and (b) guardrail conservatism, and called (a) "most of
+the story." Step 1 of the review (`scripts/analysis/06d_architecture_pilot_ci_diagnosis.Rmd`
+in the parent repo, rendered 2026-08-13) inverts that: the 52% figure came from
+restricting one input scrape in isolation, and the pilot's actual corpus
+(`proc/build/06_append_random_users_tweets.csv`) has **3.1% zero-post accounts
+(4/128)**. Restricting the CI rate to accounts with ≥1 in-window post — the
+memo's own §5 realignment — moves every architecture by under 2pp. So cause (b)
+is the dominant driver and this prompt change has to carry the correction. CI
+concentrates in a recurring set of question types across all three
+architectures (household/personal income, generalized trust, marital status,
+campaign attention, candidate favorability), largely independent of account
+richness — items a profile rarely answers directly, which a strict
+CI-on-no-direct-statement reading refuses near-universally.
+
+- **Added `REGLA SOBRE CANNOT_INFER` to Arms A, B and C**, byte-identical in all
+  three (verified programmatically) so the arm contrast stays clean — Ray's §4
+  draft text verbatim: CI only when the profile contains NO relevant signal;
+  where a weak or indirect signal exists, commit to the most plausible answer
+  and express the uncertainty through the speculation score and, for the primary
+  outcomes, the probability distribution. Arm A needs two copies because its two
+  calls share no rule text: `x_digital_twin_entity_geographic_user_prompt` (after
+  numbered item 6) and `x_digital_twin_voting_preference_wo_voting_results_user_prompt`
+  (after `REGLA SOBRE INTENCIÓN DE VOTO`). Arm B gets one copy in
+  `arm_b_stage2_system_prompt`, same position. **Arm C needs no separate edit** —
+  `arm_c_stage2_system_prompt` is `arm_b_stage2_system_prompt` plus the ordering
+  block, so it inherits by construction.
+- **Amended `REGLAS ESTRICTAS` items 3–5 in `arm_b_stage2_system_prompt`** — as
+  written they were the operative CI trigger for B/C ("úsela cuando no haya
+  evidencia de nivel medium o superior" / "no asigne CANNOT_INFER si hay
+  evidencia de nivel medium o superior") and directly contradicted the new rule,
+  which would have shipped a prompt arguing with itself and made the re-run
+  uninterpretable. Item 3 now routes `confidence: 'low'` to a committed answer
+  with high speculation; item 4 restricts CI to `confidence: 'none'` with no
+  relevant signal; item 5 forbids CI wherever any signal exists, however weak.
+  Item 3's old tail ("en lugar de la categoría modal") was dropped only because
+  the `REGLA DE INFERENCIA CONSERVADORA` block immediately below already forbids
+  modal-category defaulting — that block, including the `>70` speculation floor,
+  is unchanged, as are the `NIVELES DE ESPECULACIÓN` bands and the NA-vs-CI
+  distinction for REGION/COMUNA.
+- **Added the NA-vs-CI carve-out to Arm A's Call 1 only** — one extra sentence on
+  the end of the rule restating that "NA" still means not resident in Chile and
+  "CI" means resident but no signal on region/comuna. Call 1 previously had no
+  general CI rule at all, and its REGIÓN/COMUNA question stems are the only place
+  that distinction lives for Arm A. Arms B/C already carry it in
+  `DISTINCIÓN OBLIGATORIA ENTRE TIPOS DE PREGUNTAS`, so they need nothing extra.
+- **Arm D deliberately untouched** — per memo §6 it re-runs unchanged as the
+  benchmark. Stage 1 of Arms B/C also untouched: it is evidence-only, forbidden
+  from predicting, and emits `confidence`, never CI.
+- **Corrected the schema count in `REGLAS ESTRICTAS` item 8 from 34 to 35 claves**
+  — *not requested by the memo.* `_STAGE2_QUESTIONS` has been 35 since the
+  ballotage batch added `VOTO_BALLOTAGE_2021` and bumped the assert 34→35, but
+  the prose count was never updated, so the prompt handed the model a 35-key
+  schema while instructing it there were 34. Likely crossed with
+  `CANONICAL_OPTIONS` (34, keyed by `opt_key`, excludes COMUNA). Flagged here
+  separately because it is a plausible contributor to the criterion-(i)
+  parseable-output shortfall the re-run has to clear (A 98.4%, B 97.2%, C 97.2%
+  against a 99% bar).
+- **Passed `canonical_labels` to Arm A's two extractor calls** (memo §4's first
+  pipeline recommendation). `extract_llm_responses` already accepted the
+  parameter and Arm D already used it; Arm A passed nothing. Added
+  `ARM_A_GEO_QUESTION_LABELS` (4) and `ARM_A_VOTE_QUESTION_LABELS` (31) to
+  `prompt_template_arm_b.py`, derived from the existing `_STAGE2_QUESTIONS`
+  (whose entries already carry Arm A's verbatim title and a geo/vote tag) so no
+  second source of truth is introduced. Threaded through `arm_cfg` as
+  `entity_labels`/`voting_labels` rather than hardcoded into the two interview
+  functions — those functions are shared with the `baseline` arm, whose prompt
+  asks "OCUPACIÓN ACUTAL" (sic); normalising that against Arm A's spelling would
+  silently break the baseline-vs-A comparison. Defaults `None`, so every other
+  arm is unaffected.
+- **Added key-format validation to Arms B/C structured output** (memo §4's second
+  pipeline recommendation). `extract_json_predictions` used whatever question key
+  the model returned as the column prefix, so a typo like `EDDAD` produced a
+  stray `"EDDAD - symbol"` column while the canonical column stayed empty — with
+  no warning, and no `coalesce_columns_by_regex` pass downstream to catch it.
+  Now: per-row `warnings.warn` naming the offending keys, plus a new
+  `validate_stage2_prediction_keys()` (`src/utils.py`) that raises `ValueError`
+  with the bad keys and affected account IDs. **The raise fires after
+  `stage2_df.to_csv()`, not inside the `.apply()`** — by that point a four-arm
+  128-account run has already been paid for, and the raw output has to survive
+  for diagnosis. Missing canonical keys warn rather than raise. Validated against
+  the 35 `json_key`s in the new `STAGE2_JSON_KEYS`, deliberately not against
+  `CANONICAL_OPTIONS` (different keyspace, 34 entries, excludes COMUNA).
+- Mechanical note: the new rule contains no braces, so it is safe in both the
+  `.format()`-ed Stage 2 system prompt (where the `probability_distribution`
+  example must stay `{{...}}`) and Arm A's verbatim user prompts. Insertions sit
+  in the rules preamble, not inside a question block, so `_extract_arm_a_block`'s
+  title-keyed parsing of Arm A's prompt strings is unaffected.
+- Verified: all four arm modules import cleanly with every count invariant
+  holding (`_STAGE2_QUESTIONS` 35, `CANONICAL_OPTIONS` 34,
+  `ARM_D_QUESTION_LABELS` 35, `STAGE2_JSON_KEYS` 35 unique, nominal/ordinal
+  partition plus COMUNA still covering `SHUFFLEABLE_KEYS`); the rule line is
+  byte-identical across Arm A Call 2 / B / C and appears exactly once per prompt;
+  it is absent from both Stage 1 prompts and from Arm D; "medium o superior" is
+  gone from B and C; the `>70` floor, `REGLA DE INFERENCIA CONSERVADORA` and the
+  NA-vs-CI block are intact; `construct_system_prompt` renders B and C without a
+  brace error and the rule survives into the delivered prompt; `extract_llm_responses`
+  normalises a lowercase title with labels, leaves it alone without them, and
+  leaves baseline's "ACUTAL" untouched; `extract_json_predictions` is silent and
+  35-column on clean JSON, warns on `EDDAD`, and the validator raises naming the
+  account. 43/43 checks. **Not yet verified against a fresh smoke test or a
+  delivered-prompt check on real run output** — the delivered-prompt grep
+  (mirroring `06c_architecture_pilot_report.Rmd`'s `ref-date-check`) must cover
+  the *user*-prompt columns too, since Arm A's copies live in user prompts, not
+  the system prompt.
+
+## 2026-08-10 (reference-date instruction)
+
+Per Ray's Slack message (`#digital-twins`, 2026-08-08 01:53), responding to Matias's
+2026-08-05 audit memo (`admin/memos/Memo_Matias_AuditFindings_2026.08.05.docx`),
+which found the reference-date instruction from the registration's "Post-Election
+Information Environment and Leakage Controls" section (`paper/main8_4_final.tex`,
+§Procedures) had never actually been implemented in any prompt. Ray's spec: one
+identical context-block passage in ALL architectures (A-D) and ALL arms, both
+stages for B/C — uniformity matters because arm contrasts must differ only in
+the 2×2 toggles; the web arms (2 and 4) additionally get one extra sentence
+riding the web-search toggle (no retrieved content postdating December 13,
+2025).
+
+- **Added `REFERENCE_DATE_SENTENCE` and `WEB_SEARCH_CUTOFF_SENTENCE`** as the
+  single source of truth for both sentences (`config/digital_twin_config.py`),
+  so all arms stay textually identical rather than risking drift from
+  copy-pasting the string by hand.
+- **`REFERENCE_DATE_SENTENCE` inserted into every arm's system prompt(s)**:
+  Arm A (`prompt_template_arm_a.py`, `base_digital_twin_system_prompt`,
+  inserted after the profile block, before `Instrucciones:` — covers both of
+  Arm A's calls, since Call 2 inherits Call 1's system prompt via replayed
+  history rather than constructing its own); Arm B
+  (`prompt_template_arm_b.py`, `arm_b_stage1_system_prompt` and
+  `arm_b_stage2_system_prompt`, inserted after each stage's opening sentence) —
+  Arm C inherits automatically via its existing aliasing/inheritance of Arm
+  B's prompts, no separate edit needed; Arm D (`prompt_template_arm_d.py`,
+  `arm_d_system_prompt`, inserted after the speculation-scoring paragraph,
+  before the vote-intention paragraph). Baseline (`prompt_template.py`) was
+  deliberately left untouched — it is not one of the architecture-pilot's
+  A-D candidates, per instruction.
+- **`WEB_SEARCH_CUTOFF_SENTENCE` wired centrally, not per arm file**: added
+  `enable_web_search` parameter to `construct_system_prompt()`
+  (`src/utils.py`), which appends the sentence after the existing
+  `.format(**profile_args)` call when `enable_web_search=True`. This is the
+  single chokepoint `perform_profile_interview()` already calls for every
+  arm and every stage, so the sentence applies uniformly to arms 2/4 across
+  all four architectures (including both B/C stages and Arm A's
+  history-inherited Call 2) without any per-arm conditional logic.
+  `enable_web_search` was already threaded into every
+  `perform_profile_interview()` call site in `src/digital_twin_chile_x.py`;
+  only the one call to `construct_system_prompt()` needed the new argument
+  added.
+- Mechanical note: Arm B's Stage 2 system prompt contains an escaped-brace
+  JSON example (`probability_distribution`) that must survive
+  `construct_system_prompt()`'s `.format()` call — inserted
+  `REFERENCE_DATE_SENTENCE` there via plain string concatenation rather than
+  an f-string, since an f-string would collapse the `{{`/`}}` escapes
+  immediately at module-load time and break the later `.format()` call. Arm
+  A, Arm B Stage 1, and Arm D contain no such escapes, so those three use
+  f-string interpolation instead.
+- Verified: all four arm modules import cleanly with
+  `REFERENCE_DATE_SENTENCE` present in each (`prompt_template.py` confirmed
+  absent, as intended); `construct_system_prompt()` confirmed to append
+  `WEB_SEARCH_CUTOFF_SENTENCE` only when `enable_web_search=True`, and the
+  Stage 2 `probability_distribution` JSON example confirmed intact after
+  `.format()`. Not yet verified against a fresh smoke test — that is the
+  "verify in delivered prompts" step of Ray's sequence, to run before the
+  pilot launches.
+
+## 2026-08-05 (vote-intention stated-preference instruction)
+
+Per Ray's memo `admin/memos/Memo_PilotLaunch_Instructions_2026.08.04_v2.docx`
+§2(ii), one of the two settled instructions required before pilot launch.
+Motivated by a specific smoke-test finding, not a general concern: on the
+runoff-vote question (`INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA`), Arm B and
+Arm C disagreed for 3 of 5 profiles — checked and ruled out as Arm C's
+option-shuffle noise (Kast's list position differed across the three
+accounts, so a shuffle artifact would not produce the same disagreement
+direction every time). The actual split was a reasoning-path divergence: Arm
+B anchored on `demographics.location` ("no vive en Chile → no votaría"), Arm
+C anchored on `political.ideology` ("señal de derecha fuerte → votaría
+Kast si votara") — same three accounts, same direction, every time. Both
+readings are individually defensible for someone whose eligibility to vote
+in Chile is itself uncertain, but they produce opposite predictions for the
+same underlying evidence, so the architectures need to agree on which one is
+correct.
+
+Ray's resolution: vote-intention questions ask what the respondent would
+answer on the survey, i.e. their political preference — not whether they
+are eligible to vote. A residence or eligibility doubt must not be
+converted into an abstention answer ("no votó"/"no votaría"); the model
+should answer from the political-preference evidence as if the person were
+voting, and reserve CANNOT_INFER for profiles with no political signal at
+all. This is Arm C's reasoning path, not Arm B's — Arm B's
+location-anchored abstention default is the one being corrected.
+
+- **Added a `REGLA SOBRE INTENCIÓN DE VOTO` block to all four arms**, same
+  wording throughout (adapted to each arm's native format): Arm A
+  (`prompt_template_arm_a.py`, `x_digital_twin_voting_preference_wo_voting_results_user_prompt`,
+  inserted after the existing `REGLA DE INFERENCIA CONSERVADORA` block); Arm
+  B (`prompt_template_arm_b.py`, `arm_b_stage2_system_prompt`, inserted
+  after the `DISTINCIÓN OBLIGATORIA ENTRE TIPOS DE PREGUNTAS` section) —
+  Arm C inherits automatically via `arm_c_stage2_system_prompt =
+  arm_b_stage2_system_prompt + ...`, no separate edit needed; Arm D
+  (`prompt_template_arm_d.py`, `arm_d_system_prompt`, inserted after the
+  existing CI-escape sentence).
+- **Deliberately does not name the registration's Q7.5–7.7 exclusion or any
+  other survey-internal mechanism** — earlier draft did, but that's
+  pipeline/registration bookkeeping the model has no way to act on and no
+  need to know about; the instruction only needs to state the behavior
+  (answer the political preference, don't infer abstention from residence
+  doubt), not the reason it's safe to do so downstream.
+- Verified by import: all four arm modules import cleanly with the new text
+  present in each; `CANONICAL_OPTIONS` (34), `ARM_D_QUESTION_LABELS` (35),
+  and Arm C's `NOMINAL_KEYS`/`ORDINAL_KEYS` partition are all unchanged.
+  Not yet verified against a fresh smoke test — this is a prompt-text change
+  only, no schema/count change, so the existing invariants were the
+  relevant check.
+
+## 2026-08-04 (post smoke_test_4 Arm B review)
+
+Found by inspecting the Arm B `smoke_test_4` output columns directly against
+Lucas's summary-fields decision (Ray's 2026-08-02 memo) — the decision was
+recorded as "Done" in the PreReg tracker but never actually landed in the
+prompt.
+
+- **Actually dropped `overall_confidence` (Stage 2) and
+  `overall_inference_quality` (Stage 1) from `prompt_template_arm_b.py`'s
+  JSON schemas** — both were still present in the schema text despite the
+  memo's decision, so the model kept emitting them (`_overall_confidence`
+  visible in `smoke_test_4`'s output). Kept `cannot_infer_fields`,
+  `high_speculation_fields` (Stage 2), and `estimated_political_tweet_pct`
+  (Stage 1), per the same decision.
+- **Stopped flattening `subject_id` into its own `_subject_id` CSV column**
+  (`src/utils.py::extract_json_predictions`) — it's a pure duplicate of the
+  `account_id` column already on every row (Stage 1's `subject_id` is
+  hardcoded to `{account_id}`, not model-generated). Left `subject_id` in
+  the JSON schema itself (still useful as self-describing metadata inside
+  the raw JSON blob); only removed it from the meta-key flattening tuple,
+  same treatment as `overall_confidence`.
+- **Added instructions for the three summary fields that were never
+  explained to the model**, only ever shown as bare schema placeholders:
+  `cannot_infer_fields` (list questions where `symbol == "CI"`),
+  `high_speculation_fields` (list questions where `speculation > 70`,
+  referencing the existing REGLA DE INFERENCIA CONSERVADORA threshold
+  already in the prompt), and `estimated_political_tweet_pct` (defined what
+  counts as a "political" tweet and over what base — previously just
+  `"<porcentaje estimado>"` with no definition at all).
+- **Made `most_important_issue`'s Stage 1 evidence field state the
+  underlying question** ("el problema más importante que enfrenta el país
+  (Chile) hoy en día") instead of the vaguer "tema prioritario", which could
+  read as personal interests rather than Q5.1's specific framing.
+
+## 2026-08-02 (post round-3 smoke-test QA)
+
+Three fixes implemented from
+`scripts/analysis/06_pilot_comparison_smoke_test_qa_round3_matias.Rmd`'s
+Recommendations, against the pipeline state that round 3's smoke test
+(`data/pilot_comparison/smoke_test_3/`) actually ran on. Not yet re-verified
+by a fresh smoke test.
+
+- **Fixed `ci_bad_category`'s root cause: Arm B/C's Stage 2 output sometimes
+  wrote `category: "CI"` instead of `category: "CANNOT_INFER"` for a `CI`
+  symbol.** Root cause, confirmed by reading the actual schema text rather
+  than assumed: every one of the ~30 entries in `arm_b_stage2_system_prompt`'s
+  JSON schema documents `category` as a bare `"<texto>"` placeholder, with no
+  reminder that it should read `"CANNOT_INFER"` specifically when `symbol` is
+  `"CI"` — even though the correct pairing already exists earlier in the same
+  prompt (`"CI) CANNOT_INFER"` in every question's option list, same as Arm
+  A). Arm A doesn't have this problem because its bold-block format keeps
+  that pairing visible immediately next to where each answer gets written;
+  Arm B/C's single end-of-prompt JSON object doesn't. Fixed in two places
+  (`prompt_template_arm_b.py`, inherited by Arm C via
+  `arm_c_stage2_system_prompt = arm_b_stage2_system_prompt + ...` and
+  `fill_stage2_user_prompt()`): added `- Cuando symbol sea "CI", category
+  debe ser exactamente "CANNOT_INFER" -- nunca repita "CI" en el campo
+  category.` to the `REGLA DE FORMATO CRÍTICA` section (with a `"CI"`/
+  `"CANNOT_INFER"` example alongside the existing `PP12` example), and a
+  short reminder immediately before the JSON schema itself in the user
+  prompt, since that's the text actually adjacent to where the model fills
+  in the field. Verified by import: `prompts.prompt_template_arm_c`'s
+  `arm_c_stage2_system_prompt` inherits both changes automatically, no
+  separate edit needed there.
+
+- **Unified `probabilities`/`probability_distribution` across arms: one
+  column name, one decimal convention.** Arm A previously asked for a
+  `**probabilities:**` bold line formatted as a `SÍMBOLO=probabilidad`
+  delimited string with Spanish-locale comma decimals (e.g.
+  `AG1=0,20; AG2=0,45; ...`), while Arm B/C's `probability_distribution`
+  JSON field used period decimals — two different column names and two
+  different decimal separators for the same four PRIMARY-outcome questions.
+  Standardised on B/C's shape (JSON, period decimal) since it's already
+  standard JSON and already what two of the three arms produced. Changed
+  `prompt_template_arm_a.py`'s `DISTRIBUCIÓN DE PROBABILIDAD` instruction
+  and all four worked examples (EDAD, SEXO, ORIENTACION_IDEOLOGICA,
+  INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA) from the bold field name
+  `probabilities` to `probability_distribution`, with a JSON-object example
+  and an explicit "punto decimal, nunca coma" instruction. Matching change
+  in `src/utils.py::extract_llm_responses()`: renamed the
+  `probabilities_pattern`/`probabilities_list` machinery and the flattened
+  `{question} - probabilities` column to `probability_distribution_pattern`/
+  `probability_distribution_list`/`{question} - probability_distribution`,
+  so Arm A's column now has the same name as Arm B/C's. This field is Arm-A
+  specific in `extract_llm_responses()` (checked: no other prompt consumes
+  it), so the rename doesn't affect stock-recommendation interviews or any
+  other caller of that function. Verified: `config/digital_twin_config.py`
+  has no `probabilities`-pattern column-coalescing entry to update either
+  (same as the earlier 2026-08-01 check). Content still depends on the model
+  actually following the new JSON/period-decimal instruction — not verified
+  against a fresh run yet.
+
+- **Removed two stale `Vcu2` format examples**, in
+  `prompt_template_arm_a.py` (`REGLA DE FORMATO CRÍTICA`, appears twice —
+  once in the entity/geographic prompt, once in the voting-preference
+  prompt) and `prompt_template_arm_b.py` (same rule, Stage 2 system prompt).
+  `Vcu2` referenced the `INTENCION_VOTO_2025_FECHA_TWEET` symbol family,
+  which was removed from the codebook 2026-07-29 — the example cited a code
+  that no longer exists anywhere in the current prompts. Replaced with
+  `Vsv2` (the `INDV_INTENCION_VOTO_2025_SEGUNDA_VUELTA` family added
+  2026-07-30), which is live in the current codebook.
+
+## 2026-08-02/03
+
+Six instrument-alignment fixes from Ray Duch's 2026-08-02 memo
+(`admin/memos/Memo_Matias_PilotLaunch_2026.08.02.docx`), closing every
+`MISMATCH`/`MISSING` row in `documentation/Qualtrics Crosswalk.xlsx`'s
+Crosswalk v3 sheet except `INDECISION_2025` (still open). Applied across
+Arms A/B/C/D and `config/digital_twin_config.py` as needed; option wording
+and cutpoints sourced verbatim from the Crosswalk's `Comp` tab (the actual
+fielded Qualtrics text), not paraphrased from the memo. This batch **blocks
+the pilot** (EDAD specifically) — nothing downstream (fresh smoke test,
+architecture pilot, V8.1, OSF filing) proceeds without it.
+
+- **EDAD: AG1-AG7 (7 brackets) → AG1-AG4 (4 registered analysis brackets).**
+  18-29 / 30-44 / 45-64 / 65+, replacing the old <18/18-24/25-34/.../65+
+  scheme. `CANONICAL_OPTIONS["EDAD"]` count unaffected (still one entry);
+  option text shrinks from 7 to 4 codes + CI.
+- **Q3.5/Q3.8 participation (THPA/TCUINDV): 7-point probability scale →
+  3-option Sí/No/No recuerdo.** Matches the fielded instrument exactly
+  (neither field is part of the four-outcome Brier probability-elicitation
+  set, so dropping the probability framing doesn't touch that commitment).
+  Reclassified `THPA`/`TCUINDV` from `ORDINAL_KEYS` to `NOMINAL_KEYS` in Arm
+  C (confirmed decision, 2026-08-03) — now that the scale is a 3-category
+  Sí/No/No recuerdo choice rather than a probability continuum, it's a
+  nominal set and gets shuffled like the other nominal fields.
+- **Q3.9 vote intention 2025 (VCUINDV): added Vcuindv9 (Harold
+  Mayne-Nicholls); reframed from hypothetical intention ("votaría") to
+  realized first-round vote ("votó"), matching the fielded item (survey was
+  fielded after the first round).** Retitled the field from "(INDV)
+  PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES
+  PRESIDENCIALES DE CHILE DE 2025" to "(INDV) VOTACIÓN ACTUAL – OPCIÓN DE
+  VOTO EN LA PRIMERA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE
+  2025" — updated everywhere this title is matched (Arm B's
+  `_STAGE2_QUESTIONS` extraction anchor, Arm D's `arm_a_field` reference,
+  and the corresponding 4-line regex block in `config/digital_twin_config.py`).
+  Also reframed Arm D's sibling field INDV_PARTICIPACION_2025's free-text
+  question (was still asking "¿Votará...?" in future tense) to match.
+- **Fixed a pre-existing regex bug in `config/digital_twin_config.py`:
+  every `(INDV)`-prefixed title pattern had unescaped parentheses**
+  (`^(INDV) ...`), which regex-parses as a capture group matching bare
+  "INDV" rather than the literal "(INDV)" text — so none of these 16
+  patterns (4 fields × 4 sub-fields: the two 2021 legislative-vote fields,
+  TCUINDV's participation title, and VCUINDV's title) ever actually matched
+  Arm A's real column names, and `coalesce_columns_by_regex` silently
+  no-op'd for all of them (low practical impact in the single-column case,
+  but the merge-safety-net for near-duplicate columns was dead for this
+  whole field class). Escaped to `\(INDV\)` throughout; verified all 16
+  patterns now match their real column names. Predates this batch —
+  discovered while updating the VCUINDV title regex, not introduced by it.
+- **Added missing Q3.7 (2021 ballotage) field: `VOTO_BALLOTAGE_2021`,
+  symbols Vba1-4 + CI** (no votó / Boric / Kast / no recuerda; "Prefiero no
+  responder" flows through CI, same convention as PINC's PNR). Mirrors
+  `VOTO_PRESIDENCIAL_2021`'s block structure. New symbol prefix `Vba` chosen
+  to parallel `Vpa` (2021 first round) and `Vsv` (2025 ballotage, already
+  built) — not specified in the memo, flagging for confirmation. Required:
+  new tuple in Arm B's `_STAGE2_QUESTIONS` (34→35, `CANONICAL_OPTIONS`
+  33→34), new `NOMINAL_KEYS` entry in Arm C, four new touch points in Arm D,
+  and a new 4-line regex block in `config/digital_twin_config.py` (the one
+  fix among the six that needed a config edit, since it's a brand-new title
+  with no existing pattern).
+- **PARTIDO_POLITICO: added PP17 "No me identifico con un partido."**
+  Closes the item deliberately left open since 2026-07-27 (a real, frequent
+  ground-truth category the pipeline previously couldn't predict).
+- **PINC (RANGO_INGRESOS_PERSONALES): realigned to fielded Q7.12, 17→18
+  codes.** Old brackets (e.g. $35-60k, $60-100k) didn't match the fielded
+  cutpoints (e.g. $35-100k, $100-210k). New cutpoints taken verbatim from
+  the Comp tab. `RANGO_INGRESOS_HOGAR` (HINC, household income) intentionally
+  left untouched — the Crosswalk already marks it "Confirmed match" against
+  its own fielded item (Q7.13), whose brackets differ from Q7.12's.
 
 ## 2026-08-01
 

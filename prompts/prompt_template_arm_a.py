@@ -12,8 +12,9 @@ Changes from original prompt_template.py:
 - Legislative vote codes Vpandv6-12 corrected to Vpaindv6-12.
 - 2026-07-27: PP16) Movimiento Amarillos Por Chile added to PARTIDO POLÍTICO —
   the fielded Qualtrics instrument (Q3.1) offers it; its absence here was the
-  deviation. "No me identifico con un partido" remains deliberately unmapped
-  (open team decision; see QA report 06, pinned Asana task).
+  deviation.
+- 2026-08-02/03: PP17) No me identifico con un partido added to PARTIDO
+  POLÍTICO, per Ray's 2026-08-02 memo — closes the item open since 27 Jul.
 - 2026-07-27: AFINIDAD_PARTIDO's symbol changed from a bare "1"-"7" to
   "Afi1"-"Afi7". It was the only symbol in the entire codebook with no letter
   prefix; Lucas's QA code_specs regex for AFINIDAD_PARTIDO needs widening
@@ -29,6 +30,8 @@ Output parsing: regex on **field: value** lines (same as digital_twin_config.py 
 """
 
 import os
+
+from config.digital_twin_config import REFERENCE_DATE_SENTENCE
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -68,9 +71,11 @@ digital_twin_profile_prompt_template = """- Imagen De Perfil: {profile_picture}
 
 # ─── System prompt ────────────────────────────────────────────────────────────
 
-base_digital_twin_system_prompt = """Usted está analizando un perfil de redes sociales en {platform} para responder a un conjunto de preguntas.
-Los datos del perfil de {platform} incluyen:
-{profile_prompt_template}
+base_digital_twin_system_prompt = f"""Usted está analizando un perfil de redes sociales en {{platform}} para responder a un conjunto de preguntas.
+Los datos del perfil de {{platform}} incluyen:
+{{profile_prompt_template}}
+
+{REFERENCE_DATE_SENTENCE}
 
 Instrucciones:
 Analice la información proporcionada y responda a las siguientes preguntas basándose estrictamente en los datos disponibles. No infiera ni asuma ningún detalle más allá de lo dado. Mantenga las respuestas concisas, precisas y basadas en los datos."""
@@ -100,8 +105,10 @@ Para garantizar la coherencia, utilice las siguientes pautas para determinar los
 5) Para cada categoría seleccionada, explique detalladamente qué características de los datos contribuyeron a su elección y a su nivel de especulación.
 6) Mantenga un formato de respuesta estrictamente estructurado para garantizar la claridad y facilitar el análisis del texto.
 
+REGLA SOBRE CANNOT_INFER: Asigne CI únicamente cuando el perfil no contenga NINGUNA señal relevante para la pregunta. Si existe una señal débil o indirecta, comprométase con la respuesta más plausible y exprese su incertidumbre mediante el puntaje de especulación (y, en los resultados primarios, mediante la distribución de probabilidad) — no mediante CI. Esta regla no altera la distinción NA vs CI en REGIÓN y COMUNA: "NA" significa que la persona no vive en Chile; "CI" significa que vive en Chile pero no existe ninguna señal sobre su región o comuna.
+
 REGLA DE FORMATO CRÍTICA:
-- El campo **symbol:** debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vcu2), sin paréntesis ni texto adicional.
+- El campo **symbol:** debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vsv2), sin paréntesis ni texto adicional.
 - El campo **category:** debe contener ÚNICAMENTE la descripción completa de la categoría, sin incluir el código.
 - Nunca mezcle código y descripción en el mismo campo.
 
@@ -527,8 +534,12 @@ La ausencia de evidencia debe traducirse en una puntuación de especulación má
 No trate la ausencia de información como evidencia de abstención ni de una ideología política específica.
 En particular, evite asignar automáticamente como respuesta predeterminada: edad 25–34, ocupación "Profesional", ideología = 5, o "no votaría".
 
+REGLA SOBRE INTENCIÓN DE VOTO: Las preguntas de intención de voto (incluida la segunda vuelta) piden la preferencia política de esta persona, no si es elegible para votar. Si hay evidencia de residencia fuera de Chile o alguna otra duda sobre elegibilidad, esa duda NO debe traducirse en una respuesta de abstención ("no votó" / "no votaría"); responda igualmente según la preferencia política observada (ideología, simpatía partidaria, sentimiento hacia los candidatos), como si esta persona fuera a votar. Asigne CANNOT_INFER únicamente cuando no exista ninguna señal política relevante en el perfil — nunca como sustituto de una duda sobre residencia o elegibilidad.
+
+REGLA SOBRE CANNOT_INFER: Asigne CI únicamente cuando el perfil no contenga NINGUNA señal relevante para la pregunta. Si existe una señal débil o indirecta, comprométase con la respuesta más plausible y exprese su incertidumbre mediante el puntaje de especulación (y, en los resultados primarios, mediante la distribución de probabilidad) — no mediante CI.
+
 REGLA DE FORMATO CRÍTICA:
-- El campo **symbol:** debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vcu2), sin paréntesis ni texto adicional.
+- El campo **symbol:** debe contener ÚNICAMENTE el código (por ejemplo: PP12, AG3, Vsv2), sin paréntesis ni texto adicional.
 - El campo **category:** debe contener ÚNICAMENTE la descripción completa de la categoría, sin incluir el código.
 - Nunca mezcle código y descripción en el mismo campo.
 
@@ -542,21 +553,21 @@ Incorrecto:
 
 Formato obligatorio: Encierre cada línea de la respuesta entre dos asteriscos (**) al inicio y al final. Cada línea debe comenzar con el nombre del campo en minúsculas, seguido de : , y terminar con **. No incluya texto fuera de los asteriscos ni líneas adicionales:
 
-DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD, SEXO, ORIENTACIÓN IDEOLÓGICA O POLÍTICA, y (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 — y únicamente para estas cuatro — incluya una línea adicional **probabilities:** con la probabilidad estimada (0 a 1, con coma decimal) de cada opción de respuesta posible para esa pregunta, incluyendo CI, en el formato SÍMBOLO=probabilidad separadas por punto y coma (ejemplo: **probabilities: AG1=0,05; AG2=0,10; AG3=0,40; AG4=0,25; AG5=0,10; AG6=0,05; AG7=0,05; CI=0,00**). Las probabilidades de una misma pregunta deben sumar 1. No agregue esta línea a ninguna otra pregunta.
+DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD, SEXO, ORIENTACIÓN IDEOLÓGICA O POLÍTICA, y (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025 — y únicamente para estas cuatro — incluya una línea adicional **probability_distribution:** con la probabilidad estimada (0 a 1, con punto decimal) de cada opción de respuesta posible para esa pregunta, incluyendo CI, en formato de objeto JSON válido (ejemplo: **probability_distribution: {"AG1": 0.20, "AG2": 0.45, "AG3": 0.25, "AG4": 0.10, "CI": 0.00}**). Use siempre punto decimal, nunca coma. Las probabilidades de una misma pregunta deben sumar 1. No agregue esta línea a ninguna otra pregunta.
 
 **question: EDAD**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de AG1-AG7 y CI, suma = 1)>**
+**probability_distribution: {"AG1": <P1>, "AG2": <P2>, "AG3": <P3>, "AG4": <P4>, "CI": <P5>} (JSON, punto decimal, una entrada por cada opción de AG1-AG4 y CI, suma = 1)**
 
 **question: SEXO**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de S1-S2 y CI, suma = 1)>**
+**probability_distribution: {"S1": <P1>, "S2": <P2>, "CI": <P3>} (JSON, punto decimal, una entrada por cada opción de S1-S2 y CI, suma = 1)**
 
 **question: RANGO DE INGRESOS PERSONALES**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
@@ -593,7 +604,7 @@ DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD,
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de IoPoR1-IoPoR10 y CI, suma = 1)>**
+**probability_distribution: {"IoPoR1": <P1>, "IoPoR2": <P2>, "IoPoR3": <P3>, "IoPoR4": <P4>, "IoPoR5": <P5>, "IoPoR6": <P6>, "IoPoR7": <P7>, "IoPoR8": <P8>, "IoPoR9": <P9>, "IoPoR10": <P10>, "CI": <P11>} (JSON, punto decimal, una entrada por cada opción de IoPoR1-IoPoR10 y CI, suma = 1)**
 
 **question: PARTIDO POLÍTICO**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
@@ -655,13 +666,19 @@ DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD,
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
+**question: VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021**
+**explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
+**symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
+**category: <CATEGORÍA SELECCIONADA AQUÍ>**
+**speculation: <PUNTUACIÓN 0–100 AQUÍ>**
+
 **question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
 
-**question: (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
+**question: (INDV) VOTACIÓN ACTUAL – OPCIÓN DE VOTO EN LA PRIMERA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
@@ -672,7 +689,7 @@ DISTRIBUCIÓN DE PROBABILIDAD (solo para cuatro preguntas primarias): Para EDAD,
 **symbol: <SÍMBOLO SELECCIONADO AQUÍ>**
 **category: <CATEGORÍA SELECCIONADA AQUÍ>**
 **speculation: <PUNTUACIÓN 0–100 AQUÍ>**
-**probabilities: <SÍMBOLO1>=<P1>; <SÍMBOLO2>=<P2>; ... (una entrada por cada opción de Vsv1-Vsv5 y CI, suma = 1)>**
+**probability_distribution: {"Vsv1": <P1>, "Vsv2": <P2>, "Vsv3": <P3>, "Vsv4": <P4>, "Vsv5": <P5>, "CI": <P6>} (JSON, punto decimal, una entrada por cada opción de Vsv1-Vsv5 y CI, suma = 1)**
 
 **question: INDECISIÓN EN TORNO A LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025**
 **explanation: <RAZONAMIENTO DETALLADO AQUÍ>**
@@ -733,13 +750,10 @@ A continuación, se presenta la lista de categorías a las que este usuario pued
 
 EDAD:
 ¿Cuál es su edad actual en años?
-AG1) Menor de 18 años
-AG2) De 18 a 24 años
-AG3) De 25 a 34 años
-AG4) De 35 a 44 años
-AG5) De 45 a 54 años
-AG6) De 55 a 64 años
-AG7) 65 años o más
+AG1) De 18 a 29 años
+AG2) De 30 a 44 años
+AG3) De 45 a 64 años
+AG4) 65 años o más
 CI) CANNOT_INFER
 
 SEXO:
@@ -751,22 +765,23 @@ CI) CANNOT_INFER
 RANGO DE INGRESOS PERSONALES:
 ¿En qué rango considera que se ubica su ingreso individual mensual?
 PINC1) $0 a $35.000
-PINC2) $35.001 a $60.000
-PINC3) $60.001 a $100.000
-PINC4) $100.001 a $200.000
-PINC5) $200.001 a $350.000
-PINC6) $350.001 a $500.000
-PINC7) $500.001 a $750.000
-PINC8) $750.001 a $1.000.000
-PINC9) $1.000.001 a $1.500.000
-PINC10) $1.500.001 a $2.000.000
-PINC11) $2.000.001 a $3.000.000
-PINC12) $3.000.001 a $5.000.000
-PINC13) $5.000.001 a $7.500.000
-PINC14) $7.500.001 a $10.000.000
-PINC15) $10.000.001 a $15.000.000
-PINC16) $15.000.001 a $20.000.000
-PINC17) Más de $20.000.000
+PINC2) $35.001 a $100.000
+PINC3) $100.001 a $210.000
+PINC4) $210.001 a $350.000
+PINC5) $350.001 a $500.000
+PINC6) $500.001 a $700.000
+PINC7) $700.001 a $900.000
+PINC8) $900.001 a $1.200.000
+PINC9) $1.200.001 a $1.500.000
+PINC10) $1.500.001 a $1.800.000
+PINC11) $1.800.001 a $2.500.000
+PINC12) $2.500.001 a $3.500.000
+PINC13) $3.500.001 a $5.000.000
+PINC14) $5.000.001 a $7.000.000
+PINC15) $7.000.001 a $10.000.000
+PINC16) $10.000.001 a $15.000.000
+PINC17) $15.000.001 a $20.000.000
+PINC18) Más de $20.000.000
 CI) CANNOT_INFER
 
 RANGO DE INGRESOS DEL HOGAR:
@@ -861,6 +876,7 @@ PP13) Partido Social Cristiano
 PP14) Partido Radical (PR)
 PP15) Frente Regionalista Verde Social (FRVS)
 PP16) Movimiento Amarillos Por Chile
+PP17) No me identifico con un partido
 CI) CANNOT_INFER
 
 AFINIDAD CON PARTIDO POLÍTICO:
@@ -933,13 +949,10 @@ Vpaindv12) votó por un candidato independiente en las elecciones legislativas d
 CI) CANNOT_INFER
 
 VOTACIÓN ANTERIOR – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
-Thpa1) No hay posibilidad de que esta persona haya votado — Probabilidad: 0 — en las elecciones presidenciales de 2021
-Thpa2) Es muy improbable que esta persona haya votado — Probabilidad: 0,15 — en las elecciones presidenciales de 2021
-Thpa3) Es improbable que esta persona haya votado — Probabilidad: 0,3 — en las elecciones presidenciales de 2021
-Thpa4) 50% de probabilidades de que esta persona haya votado — Probabilidad: 0,5 — en las elecciones presidenciales de 2021
-Thpa5) Es probable que esta persona haya votado — Probabilidad: 0,7 — en las elecciones presidenciales de 2021
-Thpa6) Es muy probable que esta persona haya votado — Probabilidad: 0,85 — en las elecciones presidenciales de 2021
-Thpa7) Se tiene certeza de que esta persona ha votado — Probabilidad: 1 — en las elecciones presidenciales de 2021
+¿Votó esta persona en las elecciones presidenciales de 2021?
+Thpa1) Sí, votó en las elecciones presidenciales de 2021
+Thpa2) No votó en las elecciones presidenciales de 2021
+Thpa3) No se recuerda o no hay evidencia de si votó en las elecciones presidenciales de 2021
 CI) CANNOT_INFER
 
 VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
@@ -953,25 +966,31 @@ Vpa7) votó por Marco Enríquez-Ominami, candidato del Partido Progresista, en l
 Vpa8) votó por Franco Parisi, candidato del Partido de la Gente, en las elecciones presidenciales de 2021
 CI) CANNOT_INFER
 
-(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
-Tcuindv1) No hay posibilidad de que esta persona vaya a votar — Probabilidad: 0 — en las elecciones presidenciales de 2025
-Tcuindv2) Es muy improbable que esta persona vaya a votar — Probabilidad: 0,15 — en las elecciones presidenciales de 2025
-Tcuindv3) Es improbable que esta persona vaya a votar — Probabilidad: 0,3 — en las elecciones presidenciales de 2025
-Tcuindv4) Probabilidad del 50% de que esta persona vote — Probabilidad: 0,5 — en las elecciones presidenciales de 2025
-Tcuindv5) Probable que esta persona vaya a votar — Probabilidad: 0,7 — en las elecciones presidenciales de 2025
-Tcuindv6) Es muy probable que esta persona vaya a votar — Probabilidad: 0,85 — en las elecciones presidenciales de 2025
-Tcuindv7) Hay certeza de que esta persona irá a votar — Probabilidad: 1 — en las elecciones presidenciales de 2025
+VOTACIÓN ANTERIOR – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2021:
+Vba1) no votó en la segunda vuelta de las elecciones presidenciales de 2021
+Vba2) votó por Gabriel Boric, candidato de Convergencia Social, en la segunda vuelta de las elecciones presidenciales de 2021
+Vba3) votó por José Antonio Kast, candidato del Partido Republicano, en la segunda vuelta de las elecciones presidenciales de 2021
+Vba4) no recuerda si votó en la segunda vuelta de las elecciones presidenciales de 2021
 CI) CANNOT_INFER
 
-(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
-Vcuindv1) no votaría en las elecciones presidenciales de 2025
-Vcuindv2) votaría por Jeannette Jara, la candidata del Partido Comunista (PC), en las elecciones presidenciales de 2025
-Vcuindv3) votaría por José Antonio Kast, el candidato del Partido Republicano (Republicano), en las elecciones presidenciales de 2025
-Vcuindv4) votaría por Evelyn Matthei, la candidata apoyada por la Unión Demócrata Independiente (UDI) / Renovación Nacional (RN), en las elecciones presidenciales de 2025
-Vcuindv5) votaría por Johannes Kaiser, candidato del Partido Nacional Libertario (PNL), en las elecciones presidenciales de 2025
-Vcuindv6) votaría por Franco Parisi, candidato del Partido de la Gente (PDG), en las elecciones presidenciales de 2025
-Vcuindv7) votaría por Marco Enríquez-Ominami, candidato independiente no afiliado a ningún partido mayoritario (recogiendo firmas), en las elecciones presidenciales de 2025
-Vcuindv8) votaría por Eduardo Artés, candidato independiente no afiliado a ningún partido mayoritario (en proceso de recolección de firmas), en las elecciones presidenciales de 2025
+(INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – PARTICIPACIÓN EN LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
+El 16 de noviembre de 2025 se realizaron las elecciones presidenciales en Chile. ¿Votó esta persona en la primera vuelta de esta elección?
+Tcuindv1) Sí, votó en la primera vuelta de las elecciones presidenciales de 2025
+Tcuindv2) No votó en la primera vuelta de las elecciones presidenciales de 2025
+Tcuindv3) No se recuerda o no hay evidencia de si votó en la primera vuelta de las elecciones presidenciales de 2025
+CI) CANNOT_INFER
+
+(INDV) VOTACIÓN ACTUAL – OPCIÓN DE VOTO EN LA PRIMERA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025:
+El 16 de noviembre de 2025 se realizaron las elecciones presidenciales en Chile. ¿Por cuál de los siguientes candidatos votó esta persona en la primera vuelta de esta elección?
+Vcuindv1) no votó en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv2) votó por Jeannette Jara, la candidata del Partido Comunista (PC), en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv3) votó por José Antonio Kast, el candidato del Partido Republicano (Republicano), en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv4) votó por Evelyn Matthei, la candidata apoyada por la Unión Demócrata Independiente (UDI) / Renovación Nacional (RN), en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv5) votó por Johannes Kaiser, candidato del Partido Nacional Libertario (PNL), en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv6) votó por Franco Parisi, candidato del Partido de la Gente (PDG), en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv7) votó por Marco Enríquez-Ominami, candidato independiente, en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv8) votó por Eduardo Artés, candidato del Partido Comunista, en la primera vuelta de las elecciones presidenciales de 2025
+Vcuindv9) votó por Harold Mayne-Nicholls, candidato independiente, en la primera vuelta de las elecciones presidenciales de 2025
 CI) CANNOT_INFER
 
 (INDV) PREFERENCIAS DE VOTACIÓN ACTUALES – OPCIÓN DE VOTO EN LA SEGUNDA VUELTA DE LAS ELECCIONES PRESIDENCIALES DE CHILE DE 2025: Ahora le preguntaremos sobre la segunda vuelta de las elecciones presidenciales, que se realizará el próximo domingo 14 de diciembre de 2025. Si las elecciones presidenciales fueran hoy, ¿por cuál de los siguientes candidatos votaría?

@@ -109,6 +109,11 @@ TREATMENT_ARMS = {
         "voting_user_prompt": arm_a_prompts.x_digital_twin_voting_preference_wo_voting_results_user_prompt,
         "entity_patterns": ENTITY_GEOGRAPHIC_INTERVIEW_REGEX_PATTERNS,
         "voting_patterns": _arm_a_voting_patterns(),
+        # Canonical question titles for the regex extractor. Arm-specific on
+        # purpose -- baseline above deliberately keeps its "OCUPACIÓN ACUTAL"
+        # (sic) label and must not be normalised against Arm A's spelling.
+        "entity_labels": arm_b_prompts.ARM_A_GEO_QUESTION_LABELS,
+        "voting_labels": arm_b_prompts.ARM_A_VOTE_QUESTION_LABELS,
     },
     # Arm B: two-stage evidence-extraction -> prediction, JSON output.
     "b": {

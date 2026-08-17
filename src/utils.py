@@ -12,6 +12,7 @@ tqdm.pandas()
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor
 from prompts.prompt_template import x_tweet_prompt_template
+from prompts.prompt_template_arm_b import STAGE2_JSON_KEYS
 from config.base_config import (
     OPENAI_API_KEY,
     X_API_USERNAME,
@@ -20,6 +21,7 @@ from config.base_config import (
 )
 from config.digital_twin_config import (
     WEB_SEARCH_COUNTRY,
+    WEB_SEARCH_CUTOFF_SENTENCE,
 )
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -98,9 +100,13 @@ def construct_system_prompt(
     system_prompt_template: str,
     interview_type: str,
     include_profile_info: bool = True,
+    enable_web_search: bool = False,
 ) -> str:
     profile_args = build_profile_args(row, interview_type, include_profile_info)
-    return system_prompt_template.format(**profile_args)
+    system_prompt = system_prompt_template.format(**profile_args)
+    if enable_web_search:
+        system_prompt += "\n\n" + WEB_SEARCH_CUTOFF_SENTENCE
+    return system_prompt
 
 
 def construct_user_prompt(
@@ -160,7 +166,7 @@ def extract_llm_responses(
     confidence_list = []
     expected_holding_period_list = []
     primary_catalyst_type_list = []
-    probabilities_list = []
+    probability_distribution_list = []
 
     # Define regex patterns for each field
     question_pattern = r"\*\*question: (.*?)\*\*"
@@ -175,7 +181,7 @@ def extract_llm_responses(
     confidence_pattern = r"\*\*confidence: (.*?)\*\*"
     expected_holding_period_pattern = r"\*\*expected holding period: (.*?)\*\*"
     primary_catalyst_type_pattern = r"\*\*primary catalyst type: (.*?)\*\*"
-    probabilities_pattern = r"\*\*probabilities: (.*?)\*\*"
+    probability_distribution_pattern = r"\*\*probability_distribution: (.*?)\*\*"
 
     # Iterate through each question block and extract the fields
     for block in questions_blocks:
@@ -197,7 +203,9 @@ def extract_llm_responses(
         primary_catalyst_type = re.search(
             primary_catalyst_type_pattern, block, re.DOTALL
         )
-        probabilities = re.search(probabilities_pattern, block, re.DOTALL)
+        probability_distribution = re.search(
+            probability_distribution_pattern, block, re.DOTALL
+        )
 
         _qname = question.group(1).replace("”", "") if question else None
         if _qname and _canonical_lookup:
@@ -218,7 +226,9 @@ def extract_llm_responses(
         primary_catalyst_type_list.append(
             primary_catalyst_type.group(1) if primary_catalyst_type else None
         )
-        probabilities_list.append(probabilities.group(1) if probabilities else None)
+        probability_distribution_list.append(
+            probability_distribution.group(1) if probability_distribution else None
+        )
 
     # Create a DataFrame
     data = {
@@ -234,7 +244,7 @@ def extract_llm_responses(
         "confidence": confidence_list,
         "expected_holding_period": expected_holding_period_list,
         "primary_catalyst_type": primary_catalyst_type_list,
-        "probabilities": probabilities_list,
+        "probability_distribution": probability_distribution_list,
     }
     df = pd.DataFrame(data)
 
@@ -270,9 +280,9 @@ def extract_llm_responses(
             flattened_series[f"{question_prefix} - primary catalyst type"] = row[
                 "primary_catalyst_type"
             ]
-        if row["probabilities"]:
-            flattened_series[f"{question_prefix} - probabilities"] = row[
-                "probabilities"
+        if row["probability_distribution"]:
+            flattened_series[f"{question_prefix} - probability_distribution"] = row[
+                "probability_distribution"
             ]
 
     return flattened_series
@@ -329,8 +339,14 @@ def extract_json_predictions(
     ``{"predictions": {"EDAD": {"symbol": ..., "category": ...}, ...}, ...}``.
     Each prediction field becomes a ``"<QUESTION> - <field>"`` column so that
     the downstream analysis schema matches the regex-based arms. Top-level
-    bookkeeping fields (cannot_infer_fields, overall_confidence, ...) are kept
-    under an underscore-prefixed name. Parsing failures yield an empty Series.
+    bookkeeping fields (cannot_infer_fields, high_speculation_fields) are kept
+    under an underscore-prefixed name. ``subject_id`` and ``overall_confidence``
+    are intentionally not flattened here: the former duplicates the ``account_id``
+    column already present on every row, and the latter was dropped from the
+    schema per Ray's 2026-08-02 memo (kept: cannot_infer_fields,
+    high_speculation_fields, estimated_political_tweet_pct; dropped:
+    overall_confidence, overall_inference_quality). Parsing failures yield an
+    empty Series.
     """
     flattened_series = pd.Series(dtype="object")
     if pd.isnull(text) or not isinstance(text, str) or not text.strip():
@@ -359,6 +375,16 @@ def extract_json_predictions(
 
     predictions = data.get("predictions", {})
     if isinstance(predictions, dict):
+        unknown_keys = sorted(set(predictions) - set(STAGE2_JSON_KEYS))
+        if unknown_keys:
+            # Loud, but not fatal here: this runs per row inside .apply(), before
+            # the Stage 2 CSV is written. validate_stage2_prediction_keys() does
+            # the hard raise once the output is safely on disk.
+            warnings.warn(
+                f"Stage 2 prediction JSON contains {len(unknown_keys)} question "
+                f"key(s) outside the canonical schema: {unknown_keys}. These "
+                "produce stray columns and leave the canonical column empty."
+            )
         for question_key, prediction in predictions.items():
             if not isinstance(prediction, dict):
                 continue
@@ -370,8 +396,6 @@ def extract_json_predictions(
                     flattened_series[f"{question_key} - {field}"] = value
 
     for meta_key in (
-        "subject_id",
-        "overall_confidence",
         "cannot_infer_fields",
         "high_speculation_fields",
     ):
@@ -382,6 +406,61 @@ def extract_json_predictions(
             flattened_series[f"_{meta_key}"] = value
 
     return flattened_series
+
+
+def validate_stage2_prediction_keys(
+    stage2_df: pd.DataFrame,
+    canonical_keys: tuple = STAGE2_JSON_KEYS,
+    field: str = "symbol",
+    id_col: str = "account_id",
+) -> None:
+    """Fail loudly on misspelled or missing Stage 2 question keys (Arms B/C).
+
+    ``extract_json_predictions`` uses whatever question key the model returned as
+    the column prefix, so a typo like ``EDDAD`` silently yields an ``"EDDAD -
+    symbol"`` column while the canonical ``"EDAD - symbol"`` column stays empty.
+    Nothing downstream catches this: unlike Arms A/D, the B/C path has no
+    ``coalesce_columns_by_regex`` pass.
+
+    Call this AFTER the Stage 2 CSV has been written. A four-arm 128-account run
+    has already been paid for by this point, so the raw output must survive for
+    diagnosis -- hence the raise happens here rather than inside the per-row
+    ``.apply()``.
+
+    Missing canonical keys warn (the model omitted a question); unknown keys
+    raise, since they mean a column of predictions has silently gone missing.
+    """
+    suffix = f" - {field}"
+    present = {
+        col[: -len(suffix)] for col in stage2_df.columns if col.endswith(suffix)
+    }
+
+    missing = sorted(set(canonical_keys) - present)
+    if missing:
+        warnings.warn(
+            f"Stage 2 output is missing {len(missing)} canonical question "
+            f"key(s) entirely: {missing}."
+        )
+
+    unknown = sorted(present - set(canonical_keys))
+    if not unknown:
+        return
+
+    affected = 0
+    accounts = []
+    for key in unknown:
+        rows = stage2_df[stage2_df[f"{key}{suffix}"].notna()]
+        affected += len(rows)
+        if id_col in stage2_df.columns:
+            accounts.extend(rows[id_col].astype(str).tolist())
+
+    detail = f" Affected accounts: {sorted(set(accounts))}." if accounts else ""
+    raise ValueError(
+        f"Stage 2 prediction JSON returned {len(unknown)} question key(s) "
+        f"outside the canonical schema: {unknown}. {affected} row-key pair(s) "
+        f"affected.{detail} The Stage 2 CSV was written before this check, so "
+        "the raw output is on disk."
+    )
 
 
 def _coerce_history(x):
@@ -827,7 +906,12 @@ def perform_profile_interview(
     if system_prompt_template:
         profile_metadata[f"{interview_type}_system_prompt"] = profile_metadata.apply(
             construct_system_prompt,
-            args=(system_prompt_template, interview_type, include_profile_info),
+            args=(
+                system_prompt_template,
+                interview_type,
+                include_profile_info,
+                enable_web_search,
+            ),
             axis=1,
         )
     if user_prompt_field_override:
