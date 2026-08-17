@@ -1,4 +1,4 @@
-import requests, re, json, time, ast, os, warnings
+import requests, re, json, time, ast, os, random, warnings
 import pandas as pd
 
 pd.set_option("future.no_silent_downcasting", True)
@@ -56,9 +56,22 @@ def build_profile_args(
 ) -> dict:
     """Build the placeholder -> value mapping for a single profile row.
 
-    When ``include_profile_info`` is False every profile field is blanked out
-    (the platform label is still provided so prompt scaffolding renders), which
-    is what the "without profile info" experiment variants expect.
+    Args:
+        row (pd.Series): One row of the profile metadata frame.
+        interview_type (str): Interview identifier. Non-``x`` types return an
+            empty mapping, since only X profiles are supported.
+        include_profile_info (bool): When False every profile field is blanked
+            (the platform label is still provided so prompt scaffolding
+            renders), which is what the no-social conditions expect. Note this
+            makes every participant's prompt byte-identical.
+
+    Returns:
+        dict: Placeholder name -> value, plus a ``platform`` label.
+
+    Note:
+        Fields are read with ``row.get(column, "")``, so a roster column that
+        the prompts expect but the file lacks yields a blank field rather than
+        an error. Check the roster schema up front if that matters.
     """
     # Only X (formerly Twitter) profiles are supported by the pipeline.
     if not interview_type.startswith("x"):
@@ -88,6 +101,16 @@ def inject_profile_fields(
     and leaves every other brace untouched. That matters for the treatment arms
     whose user prompts embed literal JSON (single ``{`` / ``}``) next to the
     profile placeholders (Arms B/C/D).
+
+    Args:
+        row (pd.Series): One row of the profile metadata frame.
+        template (str): Template containing ``{placeholder}`` tokens.
+        interview_type (str): Interview identifier.
+        include_profile_info (bool): When False every profile field is blanked.
+
+    Returns:
+        str: The template with known profile placeholders substituted and all
+        other braces preserved verbatim.
     """
     profile_args = build_profile_args(row, interview_type, include_profile_info)
     for placeholder, value in profile_args.items():
@@ -102,6 +125,28 @@ def construct_system_prompt(
     include_profile_info: bool = True,
     enable_web_search: bool = False,
 ) -> str:
+    """Render an arm's system prompt for one participant.
+
+    Args:
+        row (pd.Series): One row of the profile metadata frame.
+        system_prompt_template (str): The arm's system-prompt template, with
+            ``{placeholder}`` tokens for the profile fields.
+        interview_type (str): Interview identifier, e.g.
+            ``"x_digital_twin_stage1"``. Only ``x``-prefixed types are
+            supported.
+        include_profile_info (bool): When False every profile field renders
+            blank, which is what the no-social information conditions expect.
+        enable_web_search (bool): When True, appends
+            ``WEB_SEARCH_CUTOFF_SENTENCE`` so the retrieval-side cutoff
+            instruction rides the web-search toggle.
+
+    Returns:
+        str: The system prompt with profile placeholders substituted.
+
+    Raises:
+        KeyError: If the template contains a ``{placeholder}`` that is not a
+            known profile field.
+    """
     profile_args = build_profile_args(row, interview_type, include_profile_info)
     system_prompt = system_prompt_template.format(**profile_args)
     if enable_web_search:
@@ -116,6 +161,22 @@ def construct_user_prompt(
     include_profile_info: bool = True,
     inject_profile: bool = False,
 ) -> str:
+    """Render an arm's user prompt for one participant.
+
+    Args:
+        row (pd.Series): One row of the profile metadata frame.
+        user_prompt_template (str): The arm's user-prompt template.
+        interview_type (str): Interview identifier, e.g.
+            ``"x_digital_twin_arm_d"``.
+        include_profile_info (bool): When False every profile field renders
+            blank.
+        inject_profile (bool): Whether to substitute profile placeholders.
+            Baseline/Arm A keep profile data in the *system* prompt and pass
+            False; Arms B/C/D place it in the user prompt and pass True.
+
+    Returns:
+        str: The user prompt, either verbatim or with profile fields injected.
+    """
     # Baseline / Arm A keep profile data in the system prompt, so the user
     # prompt is returned verbatim. Arms B/C/D place profile data in the user
     # prompt and request literal injection instead.
@@ -139,6 +200,19 @@ def extract_llm_responses(
     question. Default ``None`` preserves the original behaviour for callers
     that don't pass it (e.g. stock-recommendation interviews, which have no
     such fixed label set to normalise against).
+
+    Args:
+        text (str): The model's raw ``**field: value**`` response.
+        substring_exclusion_list (list): Blocks containing any of these
+            substrings are dropped before parsing.
+        canonical_labels (list): Optional fixed label set. Parsed labels are
+            matched case-insensitively against it and rewritten to canonical
+            form.
+
+    Returns:
+        pd.Series: One entry per parsed field, named ``"<QUESTION> - <field>"``
+        (e.g. ``"EDAD - symbol"``). Fields absent from a block are omitted
+        rather than set to None.
     """
     _canonical_lookup = (
         {label.lower(): label for label in canonical_labels} if canonical_labels else {}
@@ -295,7 +369,7 @@ def coalesce_columns_by_regex(data: pd.DataFrame, regex_list: list) -> pd.DataFr
     Among the matching columns, retains the one with the fewest missing values, and fills its missing values
     using the next best matching columns (row-wise, using backfill). All other matching columns are dropped.
 
-    Parameters:
+    Args:
         data (pd.DataFrame): The input DataFrame whose columns are to be coalesced.
         regex_list (list): A list of regex patterns (strings) to match column names.
 
@@ -347,6 +421,17 @@ def extract_json_predictions(
     high_speculation_fields, estimated_political_tweet_pct; dropped:
     overall_confidence, overall_inference_quality). Parsing failures yield an
     empty Series.
+
+    Args:
+        text (str): The Stage 2 JSON response. Markdown code fences are
+            stripped, and a bare ``{...}`` block is recovered as a fallback.
+        field_keys (tuple): Prediction sub-fields to flatten into columns.
+
+    Returns:
+        pd.Series: One entry per prediction field, named
+        ``"<QUESTION_KEY> - <field>"``, plus underscore-prefixed bookkeeping
+        keys. List and dict values are JSON-encoded. Returns an empty Series if
+        the text cannot be parsed at all.
     """
     flattened_series = pd.Series(dtype="object")
     if pd.isnull(text) or not isinstance(text, str) or not text.strip():
@@ -429,6 +514,22 @@ def validate_stage2_prediction_keys(
 
     Missing canonical keys warn (the model omitted a question); unknown keys
     raise, since they mean a column of predictions has silently gone missing.
+
+    Args:
+        stage2_df (pd.DataFrame): The flattened Stage 2 frame.
+        canonical_keys (tuple): The expected question keys.
+        field (str): Prediction sub-field whose columns identify which question
+            keys are present.
+        id_col (str): Column naming the subject, used in the error message.
+
+    Returns:
+        None: Raises or warns; the caller's frame is not modified.
+
+    Raises:
+        ValueError: If any returned question key is not in ``canonical_keys``.
+
+    Warns:
+        UserWarning: If a canonical key is missing from the output.
     """
     suffix = f" - {field}"
     present = {
@@ -464,6 +565,19 @@ def validate_stage2_prediction_keys(
 
 
 def _coerce_history(x):
+    """Normalise a stored conversation history into a list of messages.
+
+    History round-trips through a CSV cell as a JSON string, so it comes back
+    as ``str`` on reload but may still be a ``list`` in memory.
+
+    Args:
+        x: A JSON string, a list of message dicts, ``None``, or NaN.
+
+    Returns:
+        list: Message dicts with ``role`` and ``content`` keys. Returns an
+        empty list for missing or unparseable input rather than raising, so a
+        malformed history degrades to "no history" instead of failing the run.
+    """
     # Accept list or JSON string; return list[{"role","content"}]
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return []
@@ -476,9 +590,17 @@ def _coerce_history(x):
 
 
 def messages_to_input(messages: list) -> str:
-    """
-    Convert a list of chat messages (each a dict with 'role' and 'content')
-    into a single transcript string for the Responses API 'input'.
+    """Flatten chat messages into a single transcript string.
+
+    The Responses API's ``input`` field takes one string, so a multi-turn
+    exchange is rendered as ``ROLE: content`` lines.
+
+    Args:
+        messages (list): Message dicts with ``role`` and ``content`` keys.
+
+    Returns:
+        str: Newline-joined ``ROLE: content`` lines. Messages with empty
+        content are skipped.
     """
     lines = []
     for m in messages:
@@ -500,6 +622,35 @@ def create_batch_file(
     batch_file_name: str = "batch_input.jsonl",
     vector_store_ids: list = [],
 ) -> str:
+    """Write a JSONL batch-input file, one request per participant.
+
+    Used by the non-web information conditions, which go through the Batch API
+    rather than issuing row-wise calls. Note this path can only ever attach the
+    ``file_search`` tool -- the web-search tool is not available on the batch
+    endpoint.
+
+    Args:
+        prompts (pd.DataFrame): Frame carrying ``custom_id`` plus the system
+            and user prompt columns.
+        project_name (str): Project folder under ``data/``.
+        execution_date (str): Run namespace (directory name).
+        gpt_model (str): Model id. Must start with ``gpt-4`` or ``gpt-5``;
+            ``gpt-4`` requests set ``temperature=0`` while ``gpt-5`` omits the
+            parameter, which the pinned snapshot does not accept.
+        system_prompt_field (str): Column holding the system prompt.
+        user_prompt_field (str): Column holding the user prompt.
+        history_field (str): Optional column holding prior turns to replay.
+        batch_file_name (str): Output filename inside ``batch-files/``.
+        vector_store_ids (list): When non-empty, requests target
+            ``/v1/responses`` with a ``file_search`` tool instead of
+            ``/v1/chat/completions``.
+
+    Returns:
+        str: ``batch_file_name``, for the caller to hand to :func:`batch_query`.
+
+    Raises:
+        ValueError: If ``gpt_model`` is neither a ``gpt-4`` nor ``gpt-5`` model.
+    """
     # Creating an array of json tasks
     tasks = []
 
@@ -617,6 +768,31 @@ def batch_query(
     batch_output_file_dir: str,
     vector_store_ids: list = [],
 ) -> pd.DataFrame:
+    """Submit a batch job, block until it finishes, and return its responses.
+
+    Polls every 5 minutes against a 24-hour completion window, so this call can
+    block for hours -- that is the cost trade-off the batch path exists for.
+
+    Args:
+        project_name (str): Project folder under ``data/``.
+        execution_date (str): Run namespace (directory name).
+        batch_input_file_dir (str): Input filename inside ``batch-files/``.
+        batch_output_file_dir (str): Filename to write raw results to inside
+            ``batch-files/``.
+        vector_store_ids (list): When non-empty, the job targets
+            ``/v1/responses`` and results are parsed out of the ``output``
+            array; otherwise ``/v1/chat/completions`` and the first choice.
+
+    Returns:
+        pd.DataFrame: Columns ``custom_id`` and ``query_response``.
+
+    Raises:
+        Exception: If the batch job reports status ``failed``.
+
+    Warns:
+        UserWarning: When a response carries no recoverable text, in which case
+            that row's ``query_response`` is an empty string.
+    """
     # Upload batch input file
     batch_file = openai_client.files.create(
         file=open(
@@ -769,6 +945,20 @@ def extract_hashtags(hashtags_str: str) -> str:
 
 
 def extract_tweets(profile_id: str, tweet_metadata: pd.DataFrame) -> str:
+    """Render one account's posts as the formatted block used in prompts.
+
+    Args:
+        profile_id (str): The ``account_id`` to select posts for.
+        tweet_metadata (pd.DataFrame): Post corpus. Needs ``account_id`` and
+            ``createdAt``; every content column (``text``, ``likeCount``,
+            ``hashtags``, ...) is optional and renders empty when absent.
+
+    Returns:
+        str: One formatted block per post, most recent first, separated by
+        blank lines. Returns an empty string when the account has no posts --
+        which is silent by design here, so callers that care must check
+        coverage themselves before building prompts.
+    """
     # Filter the rows where profile_id matches
     filtered_tweets = tweet_metadata[tweet_metadata["account_id"] == profile_id].copy()
 
@@ -862,6 +1052,59 @@ def perform_profile_interview(
     inject_profile_into_user_prompt: bool = False,
     user_prompt_field_override: str = None,
 ) -> None:
+    """Run one interview call for every participant and write the results CSV.
+
+    Builds each participant's prompts, dispatches the calls, and writes the
+    whole frame -- inputs, prompts, responses and the web-search log -- to
+    ``output_file``. Because the frame is written whole with no column
+    subsetting, columns from a previous call in the same arm are carried
+    forward when the caller passes that call's CSV as ``profile_metadata_file``.
+
+    Dispatch is decided by ``enable_web_search``: web-enabled conditions go
+    row-wise through the Responses API with the ``web_search`` tool attached,
+    concurrently across ``NUM_PARALLEL_PROCESSES`` threads; non-web conditions
+    go through the Batch API, which is cheaper but can block for hours.
+
+    Args:
+        project_name (str): Project folder under ``data/``.
+        execution_date (str): Run namespace (directory name and filename
+            suffix).
+        gpt_model (str): Model id to call.
+        profile_metadata_file (str): Input CSV inside the run namespace. May be
+            a previous call's output, which is how columns carry forward.
+        post_file (str): Post corpus CSV inside the run namespace.
+        output_file (str): Output CSV filename inside the run namespace.
+        system_prompt_template (str): System-prompt template; an empty string
+            skips creating the system-prompt column entirely (used by the
+            second call of the two-call arms, which replays history instead).
+        user_prompt_template (str): User-prompt template.
+        llm_response_field (str): Column to write the model's text into.
+        interview_type (str): Interview identifier. Also scopes the derived
+            ``<interview_type>_system_prompt`` / ``_user_prompt`` /
+            ``_web_search_log`` column names, which is what keeps successive
+            calls in one arm from overwriting each other.
+        history_field (str): Optional column holding prior turns to replay.
+        vector_store_ids (list): Optional file-search vector stores.
+        include_profile_info (bool): When False every profile field is blanked,
+            so all participants receive a byte-identical prompt.
+        use_row_query (bool): Force the row-wise path even without web search.
+        enable_web_search (bool): Attach the web-search tool, which also
+            forces the row-wise path.
+        inject_profile_into_user_prompt (bool): Substitute profile fields into
+            the user prompt (Arms B/C/D) rather than the system prompt.
+        user_prompt_field_override (str): Use this pre-computed per-row column
+            as the user prompt instead of rendering a template. Used by the
+            two-stage arms, whose Stage 2 prompt embeds Stage 1's evidence.
+
+    Returns:
+        None: Results are written to ``output_file``.
+
+    Raises:
+        ValueError: If ``interview_type`` is not an ``x``-prefixed type.
+        FileNotFoundError: If the metadata or post CSV is absent from the run
+            namespace -- reachable when ``--skip-profile-search`` points at a
+            namespace that was never populated.
+    """
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(os.path.join(base_dir, "../data"), exist_ok=True)
@@ -945,6 +1188,11 @@ def perform_profile_interview(
         exist_ok=True,
     )
 
+    # Scoped per interview_type (matching the *_system_prompt / *_user_prompt
+    # convention above) so that the two-call and two-stage arms, which carry
+    # each other's columns forward, cannot overwrite one another's log.
+    web_search_log_field = f"{interview_type}_web_search_log"
+
     if (
         use_row_query or enable_web_search
     ):  # When performing row-wise queries or enabling web search
@@ -965,7 +1213,15 @@ def perform_profile_interview(
         rows = [row for _, row in profile_metadata.iterrows()]
 
         def run_row_query(row):
-            # row_query(row, args=(...)) matches your previous progress_apply usage
+            """Call :func:`row_query` for one row, closing over the shared args.
+
+            Args:
+                row (pd.Series): One participant's row, carrying the rendered
+                    prompt columns.
+
+            Returns:
+                tuple[str, str]: ``(response_text, web_search_log_json)``.
+            """
             return row_query(
                 row,
                 args=(row_query_args,),
@@ -976,8 +1232,15 @@ def perform_profile_interview(
                 tqdm_auto(executor.map(run_row_query, rows), total=len(rows))
             )
 
-        # Assign results back to the DataFrame in the same order
-        profile_metadata_with_responses[llm_response_field] = results
+        # Assign results back to the DataFrame in the same order. The guard is
+        # required: zip(*[]) raises, and an empty frame is reachable whenever
+        # the roster/corpus filter matched no accounts.
+        if results:
+            response_texts, web_search_logs = (list(t) for t in zip(*results))
+        else:
+            response_texts, web_search_logs = [], []
+        profile_metadata_with_responses[llm_response_field] = response_texts
+        profile_metadata_with_responses[web_search_log_field] = web_search_logs
 
     else:  # Perform batch queries to save cost
         # Perform batch query for survey questions
@@ -1013,6 +1276,15 @@ def perform_profile_interview(
             on="custom_id",
         )
 
+        # The batch endpoint cannot attach the web-search tool at all
+        # (create_batch_file only ever emits file_search), and enable_web_search
+        # routes to the row branch above, so "no searches" is an invariant here
+        # rather than an assumption. Still write a payload so the column has the
+        # same shape in every arm and downstream json.loads needs no special case.
+        profile_metadata_with_responses[web_search_log_field] = empty_web_search_log(
+            "batch", web_search_enabled=False
+        )
+
     # Save profile metadata after analysis into CSV file
     profile_metadata_with_responses.to_csv(
         os.path.join(base_dir, "../data", project_name, execution_date, output_file),
@@ -1020,7 +1292,309 @@ def perform_profile_interview(
     )
 
 
-def row_query(row: pd.Series, args: list) -> str:
+# ─── Web-search logging ───────────────────────────────────────────────────────
+# The Responses API returns far more than the answer text: `response.output`
+# carries one `web_search_call` item per search the model issued (with the query
+# and, for some actions, the URLs it opened), and the assistant message's
+# `annotations` carry `url_citation` entries for the sources actually cited.
+# `response.output_text` throws all of that away. We persist it per interview so
+# that what the model retrieved is auditable after the fact.
+
+WEB_SEARCH_LOG_SCHEMA_VERSION = 1
+
+# Backstops so one pathological response cannot produce an unbounded CSV cell.
+MAX_LOGGED_SOURCES_PER_CALL = 100
+MAX_LOGGED_CITATIONS = 200
+
+
+def _g(obj, name, default=None):
+    """Read an attribute without ever raising.
+
+    Used for traversing SDK response objects, so that a shape change in a
+    future SDK release degrades the log rather than failing the interview.
+
+    Args:
+        obj: Any object, including ``None``.
+        name (str): Attribute name.
+        default: Value to return when the attribute is missing or unreadable.
+
+    Returns:
+        The attribute value, or ``default``.
+    """
+    try:
+        return getattr(obj, name, default)
+    except Exception:
+        return default
+
+
+def _safe_dump(obj):
+    """Produce a serialisable representation of an unrecognised SDK object.
+
+    Args:
+        obj: Any object, typically a pydantic model from the OpenAI SDK.
+
+    Returns:
+        A dict when the object exposes ``to_dict`` or ``model_dump``, ``None``
+        for ``None`` input, otherwise ``str(obj)`` or ``"<undumpable>"``.
+    """
+    if obj is None:
+        return None
+    for method in ("to_dict", "model_dump"):
+        try:
+            return getattr(obj, method)()
+        except Exception:
+            pass
+    try:
+        return str(obj)
+    except Exception:
+        return "<undumpable>"
+
+
+def _dump_web_search_log(payload: dict) -> str:
+    """Serialise a log payload to a single CSV-safe line.
+
+    No ``indent``: that is what keeps literal newlines out of the cell. Matches
+    the ``separators``/``ensure_ascii`` convention already used for
+    ``entity_geographic_interview_history``.
+
+    Args:
+        payload (dict): The log payload to serialise.
+
+    Returns:
+        str: Single-line JSON. On a serialisation failure, returns a minimal
+        payload carrying ``extract_error`` rather than raising, so one bad
+        value cannot fail an interview that has already been paid for.
+    """
+    try:
+        return json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":"), default=str
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        return '{"v":%d,"extract_error":%s,"searches":[],"citations":[]}' % (
+            WEB_SEARCH_LOG_SCHEMA_VERSION,
+            json.dumps(repr(exc)[:500]),
+        )
+
+
+def empty_web_search_log(path: str, web_search_enabled: bool = False, **extra) -> str:
+    """Build a log payload for an interview that issued no searches.
+
+    Used for the batch path (where the web-search tool cannot be attached at
+    all) and for skipped/failed rows, so that every row in every arm holds a
+    parseable payload with the same shape. A downstream
+    ``df[col].map(json.loads)`` then needs no special-casing for empty cells.
+
+    Args:
+        path (str): Why no searches occurred -- ``"batch"`` (batch endpoint),
+            ``"skipped"`` (prompt missing, no call made) or ``"row"`` (the call
+            failed; pair with ``error``).
+        web_search_enabled (bool): Whether web search was requested.
+        **extra: Additional top-level keys to merge in, e.g.
+            ``error="RateLimitError(...)"``.
+
+    Returns:
+        str: Single-line JSON with empty ``searches`` and ``citations`` lists.
+    """
+    payload = {
+        "v": WEB_SEARCH_LOG_SCHEMA_VERSION,
+        "path": path,
+        "web_search_enabled": bool(web_search_enabled),
+        "n_web_search_calls": 0,
+        "searches": [],
+        "n_citations": 0,
+        "citations": [],
+    }
+    payload.update(extra)
+    return _dump_web_search_log(payload)
+
+
+def _extract_search_action(action) -> dict:
+    """Normalise one ``web_search_call.action`` into a flat dict.
+
+    The SDK models this as a union: ``search`` carries ``query`` plus a nullable
+    ``sources`` list, ``open_page`` carries ``url``, ``find`` carries ``url`` and
+    ``pattern``. Any variant we do not recognise is preserved verbatim under
+    ``raw`` rather than dropped, so a future SDK addition loses no data.
+
+    Two failure modes are labelled distinctly, because they mean different
+    things to an auditor reconstructing what the model retrieved:
+
+    * ``"unavailable"`` -- the API returned a search call with no ``action`` at
+      all (observed in practice, despite the SDK typing it as required). The
+      query is genuinely unrecoverable; there is nothing more to parse.
+    * ``"unknown"`` -- an ``action`` is present but its ``type`` is one we do
+      not handle. The payload IS recoverable and is preserved under ``raw``,
+      so this is a signal to extend this function.
+
+    Args:
+        action: The SDK's ``web_search_call.action``, or ``None``.
+
+    Returns:
+        dict: Always carries ``action``. A ``search`` adds ``query`` and
+        ``sources`` (capped at ``MAX_LOGGED_SOURCES_PER_CALL``, flagged with
+        ``sources_truncated``); ``open_page`` adds ``url``; ``find`` adds
+        ``url`` and ``pattern``; an unrecognised type adds ``raw``.
+    """
+    if action is None:
+        return {"action": "unavailable"}
+
+    action_type = _g(action, "type")
+    entry = {"action": action_type or "unknown"}
+
+    if action_type == "search":
+        entry["query"] = _g(action, "query")
+        sources = _g(action, "sources") or []
+        urls = []
+        for source in sources[:MAX_LOGGED_SOURCES_PER_CALL]:
+            url = _g(source, "url")
+            if url:
+                urls.append(url)
+        entry["sources"] = urls
+        if len(sources) > MAX_LOGGED_SOURCES_PER_CALL:
+            entry["sources_truncated"] = True
+    elif action_type == "open_page":
+        entry["url"] = _g(action, "url")
+    elif action_type == "find":
+        entry["url"] = _g(action, "url")
+        entry["pattern"] = _g(action, "pattern")
+    else:
+        entry["raw"] = _safe_dump(action)
+
+    return entry
+
+
+def build_web_search_log(
+    response,
+    *,
+    web_search_enabled: bool,
+    path: str = "row",
+    error: str = None,
+) -> str:
+    """Summarise the web-search activity of one Responses API call as JSON.
+
+    ``response`` is deliberately duck-typed rather than annotated as the SDK's
+    ``Response``: every field is read through :func:`_g`, so the function can be
+    exercised with plain ``types.SimpleNamespace`` fixtures at zero API cost, and
+    it degrades rather than raises if the SDK's shape changes.
+
+    Never raises. On an internal failure it returns a payload carrying
+    ``extract_error`` so the problem is diagnosable from the output CSV instead
+    of taking down a run mid-flight.
+
+    Args:
+        response: The Responses API result object (duck-typed).
+        web_search_enabled (bool): Whether the web-search tool was attached.
+        path (str): Dispatch path that produced this response, ``"row"``.
+        error (str): Optional error repr when the call itself failed.
+
+    Returns:
+        str: Single-line JSON carrying ``searches`` (one entry per
+        ``web_search_call``), ``citations`` (``url_citation`` annotations,
+        capped at ``MAX_LOGGED_CITATIONS``), ``response_id``,
+        ``response_status``, ``model``, ``created_at`` and ``usage``.
+
+    Note:
+        The API does not always report a query for a search call, in which case
+        the entry is labelled ``action: "unavailable"``. Query text and
+        citations are therefore best-effort, while the response id, timestamp
+        and search count are reliable.
+    """
+    try:
+        searches = []
+        citations = []
+
+        for item in _g(response, "output", None) or []:
+            item_type = _g(item, "type")
+
+            if item_type == "web_search_call":
+                entry = {"id": _g(item, "id"), "status": _g(item, "status")}
+                entry.update(_extract_search_action(_g(item, "action")))
+                searches.append(entry)
+
+            elif item_type == "message":
+                for content in _g(item, "content", None) or []:
+                    if _g(content, "type") != "output_text":
+                        continue
+                    for annotation in _g(content, "annotations", None) or []:
+                        if _g(annotation, "type") != "url_citation":
+                            continue
+                        if len(citations) >= MAX_LOGGED_CITATIONS:
+                            break
+                        citations.append(
+                            {
+                                "url": _g(annotation, "url"),
+                                "title": _g(annotation, "title"),
+                                "start_index": _g(annotation, "start_index"),
+                                "end_index": _g(annotation, "end_index"),
+                            }
+                        )
+
+        usage = _g(response, "usage")
+        payload = {
+            "v": WEB_SEARCH_LOG_SCHEMA_VERSION,
+            "path": path,
+            "web_search_enabled": bool(web_search_enabled),
+            "response_id": _g(response, "id"),
+            "response_status": _g(response, "status"),
+            "model": _g(response, "model"),
+            # The retrieval timestamp: this is what lets an analyst check
+            # whether retrieved content postdates the study's context cutoff.
+            "created_at": _g(response, "created_at"),
+            "usage": (
+                {
+                    "input_tokens": _g(usage, "input_tokens"),
+                    "output_tokens": _g(usage, "output_tokens"),
+                    "total_tokens": _g(usage, "total_tokens"),
+                }
+                if usage is not None
+                else None
+            ),
+            "n_web_search_calls": len(searches),
+            "searches": searches,
+            "n_citations": len(citations),
+            "citations": citations,
+            "error": error,
+            "extract_error": None,
+        }
+        return _dump_web_search_log(payload)
+
+    except Exception as exc:
+        return _dump_web_search_log(
+            {
+                "v": WEB_SEARCH_LOG_SCHEMA_VERSION,
+                "path": path,
+                "web_search_enabled": bool(web_search_enabled),
+                "n_web_search_calls": 0,
+                "searches": [],
+                "n_citations": 0,
+                "citations": [],
+                "error": error,
+                "extract_error": repr(exc)[:500],
+            }
+        )
+
+
+def row_query(row: pd.Series, args: list) -> "tuple[str, str]":
+    """Run one interview and return ``(response_text, web_search_log_json)``.
+
+    The second element is always a parseable JSON string, on every return path,
+    so the caller can assign it straight into a column without None-handling.
+
+    Args:
+        row (pd.Series): One participant's row, carrying the rendered prompt
+            columns.
+        args (list): A 1-tuple wrapping a 6-element list, unpacked positionally
+            as ``(system_prompt_column, user_prompt_column, history_field,
+            gpt_model, enable_web_search, vector_store_ids)``. This shape is
+            what ``ThreadPoolExecutor.map`` needs to pass one argument per row.
+
+    Returns:
+        tuple[str, str]: The model's text and its web-search log. On failure,
+        ``("Error or Timeout", <log carrying the exception repr>)`` -- errors
+        are caught rather than raised, because ``executor.map`` is lazy and an
+        escaping exception would abort a run whose other rows were already
+        billed.
+    """
     system_prompt = row.get(args[0][0], "")
     user_prompt = row[args[0][1]]
     history_field = args[0][2]
@@ -1030,7 +1604,7 @@ def row_query(row: pd.Series, args: list) -> str:
 
     # Skip if system_prompt/user_prompt is empty or NaN (depending on your logic)
     if not isinstance(system_prompt, str) or not isinstance(user_prompt, str):
-        return ""
+        return "", empty_web_search_log("skipped", enable_web_search)
 
     query_parameters = {
         "model": gpt_model,
@@ -1102,15 +1676,22 @@ def row_query(row: pd.Series, args: list) -> str:
     else:
         query_parameters["temperature"] = 0
 
-    # Make a chat completion request
+    # Make a chat completion request. Everything below stays inside this try:
+    # ``executor.map`` is lazy, so an exception escaping here would surface when
+    # the caller materialises the results and would abort the whole run after
+    # the other rows had already been paid for.
     try:
         response = openai_client.responses.create(**query_parameters)
-        return response.output_text
+        return response.output_text, build_web_search_log(
+            response, web_search_enabled=enable_web_search, path="row"
+        )
 
     except Exception as e:
         # Handle errors (rate limits, etc.)
         print(f"Error processing row: {e}")
-        return "Error or Timeout"
+        return "Error or Timeout", empty_web_search_log(
+            "row", enable_web_search, error=repr(e)[:500]
+        )
 
 
 def perform_x_profile_search(
@@ -1124,6 +1705,36 @@ def perform_x_profile_search(
     local_file: str = None,
     historical_post_file: str = None,
 ) -> pd.DataFrame:
+    """Collect each rostered account's posts into the run namespace.
+
+    Two branches. With ``local_file`` the posts are filtered out of an existing
+    corpus, which is deterministic and free; without it they are fetched from
+    the X API.
+
+    Args:
+        project_name (str): Project folder under ``data/``.
+        execution_date (str): Run namespace (directory name).
+        input_file (str): Roster CSV naming which accounts to collect. Only its
+            ``account_id`` column is read. An absolute path is used as-is.
+        output_file (str): Output CSV filename inside the run namespace.
+        start_date (str): Inclusive lower bound on post date.
+        end_date (str): Exclusive upper bound on post date. Applied on the
+            local branch only -- the API branch bounds nothing at the top end.
+        num_posts_per_profile (int): Per-account cap. Applied on the API branch
+            only; the local branch ignores it and takes every matching post.
+        local_file (str): Post corpus to filter. ``None`` selects the API branch.
+        historical_post_file (str): Optional existing corpus to merge results
+            into, de-duplicated on post id.
+
+    Returns:
+        pd.DataFrame: The collected posts, also written to ``output_file``.
+
+    Note:
+        ``start_date``/``end_date`` are parsed differently by the two branches
+        (``pd.to_datetime`` locally, ``strptime("%Y-%m-%d")`` on the API path),
+        so a format that works locally will not necessarily work against the
+        API.
+    """
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(os.path.join(base_dir, "../data"), exist_ok=True)
@@ -1261,6 +1872,89 @@ def perform_x_profile_search(
     return profile_search_results
 
 
+def select_profile_sample(
+    roster_path: str,
+    sample_size: int = None,
+    seed: int = None,
+) -> "tuple[list[str], dict]":
+    """Draw a reproducible random subsample of ``account_id``s from a roster.
+
+    Returns ``(account_ids, metadata)``. The ids are returned in canonical
+    (sorted) order so that the sample-tag hash is order-invariant.
+
+    Determinism, which is the whole point here, rests on three choices:
+
+    * The candidate pool is **sorted first**, so re-exporting or re-sorting the
+      roster CSV cannot change who gets drawn. ``astype(str)`` is required --
+      ids read back as int64 from a future export would otherwise sort
+      differently, and a mixed-type list raises under ``sorted``.
+    * ``drop_duplicates()`` rather than ``set()``: iterating a set of strings is
+      randomised per process by PYTHONHASHSEED, which would make the sample
+      irreproducible across invocations.
+    * ``random.Random(seed)`` rather than ``DataFrame.sample(random_state=)``:
+      pandas' sampling depends on frame row order and on numpy Generator
+      semantics, neither of which is contractually stable across versions.
+      ``random.Random`` depends on nothing but ``(seed, list, k)``.
+
+    Shuffling the whole pool and taking a prefix (rather than ``rng.sample``)
+    additionally makes samples **nested**: at a fixed seed the n=10 sample is a
+    subset of n=25, which is a subset of n=50. That lets a study be piloted
+    small and scaled up without discarding the earlier runs.
+
+    Args:
+        roster_path (str): CSV listing candidate accounts. Needs an
+            ``account_id`` column.
+        sample_size (int): How many accounts to draw. ``None`` returns the
+            whole roster.
+        seed (int): Seed for the draw. Required for a reproducible sample.
+
+    Returns:
+        tuple[list[str], dict]: The selected ``account_id``s in canonical
+        sorted order, and metadata recording the roster file and size, the
+        requested and effective sizes, the seed, and the sampling method.
+
+    Raises:
+        ValueError: If the roster has no ``account_id`` column, contains no
+            usable ids, or is smaller than ``sample_size``.
+    """
+    roster = pd.read_csv(roster_path)
+    if "account_id" not in roster.columns:
+        raise ValueError(
+            f"Roster {roster_path} must contain an 'account_id' column; "
+            f"found {list(roster.columns)[:10]}."
+        )
+
+    ids = sorted(
+        roster["account_id"].dropna().astype(str).str.strip().drop_duplicates().tolist()
+    )
+    if not ids:
+        raise ValueError(f"Roster {roster_path} contains no usable account_id values.")
+
+    metadata = {
+        "roster_file": os.path.abspath(roster_path),
+        "roster_size": len(ids),
+        "requested_size": sample_size,
+        "seed": seed,
+        "method": "sorted_shuffle_prefix",
+    }
+
+    if sample_size is None:
+        metadata["effective_size"] = len(ids)
+        return ids, metadata
+
+    if sample_size > len(ids):
+        raise ValueError(
+            f"--sample-size {sample_size} exceeds the {len(ids)} unique accounts "
+            f"in {roster_path}."
+        )
+
+    shuffled = ids[:]
+    random.Random(seed).shuffle(shuffled)
+    selected = sorted(shuffled[:sample_size])
+    metadata["effective_size"] = len(selected)
+    return selected, metadata
+
+
 def perform_x_profile_metadata_search(
     project_name: str,
     execution_date: str,
@@ -1268,6 +1962,31 @@ def perform_x_profile_metadata_search(
     output_file: str = "",
     local_file: str = None,
 ) -> pd.DataFrame:
+    """Collect each rostered account's profile metadata into the run namespace.
+
+    Args:
+        project_name (str): Project folder under ``data/``.
+        execution_date (str): Run namespace (directory name).
+        input_file (str): Roster CSV naming which accounts to collect. Only its
+            ``account_id`` column is read. An absolute path is used as-is,
+            which is how a sampled roster is supplied.
+        output_file (str): Output CSV filename inside the run namespace.
+        local_file (str): Metadata corpus to filter. ``None`` selects the API
+            branch.
+
+    Returns:
+        pd.DataFrame: The collected profile metadata, also written to
+        ``output_file``. Row order follows the corpus file, not the roster,
+        and that order determines the ``custom_id`` assigned downstream.
+
+    Raises:
+        AssertionError: If the roster has no ``account_id`` column.
+
+    Note:
+        Columns the prompts expect but the corpus lacks are not detected here.
+        They surface as blank prompt fields via ``build_profile_args``, so
+        callers should check the roster schema before building prompts.
+    """
     # Create the project subfolder within the data folder if it does not exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(os.path.join(base_dir, "../data"), exist_ok=True)
@@ -1283,7 +2002,12 @@ def perform_x_profile_metadata_search(
     assert (
         "account_id" in profile_data.columns
     ), "Input file must contain 'account_id' column."
-    profile_list = list(set(profile_data["account_id"].tolist()))
+    # drop_duplicates() rather than list(set(...)): iterating a set of strings is
+    # randomised per process by PYTHONHASHSEED. That is harmless on the local
+    # branch below (which filters with .isin, so corpus order wins), but on the
+    # API branch profile_list order becomes the output row order, and therefore
+    # the custom_id assignment -- which must be reproducible across runs.
+    profile_list = profile_data["account_id"].dropna().drop_duplicates().tolist()
 
     if local_file is None:  # Perform API search
         # Perform profile metadata search

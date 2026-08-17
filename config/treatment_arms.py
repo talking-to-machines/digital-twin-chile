@@ -43,9 +43,15 @@ def _arm_a_voting_patterns() -> list:
 
     Arm A corrects two issues that change output column names relative to the
     baseline prompt:
-      * the ``OCUPACIÓN ACUTAL`` typo is fixed to ``OCUPACIÓN ACTUAL``; and
-      * AFINIDAD CON PARTIDO POLÍTICO emits ``symbol``/``category`` fields
-        instead of a single ``value`` field.
+
+    * the ``OCUPACIÓN ACUTAL`` typo is fixed to ``OCUPACIÓN ACTUAL``; and
+    * AFINIDAD CON PARTIDO POLÍTICO emits ``symbol``/``category`` fields
+      instead of a single ``value`` field.
+
+    Returns:
+        list: Regex patterns for :func:`src.utils.coalesce_columns_by_regex`,
+        derived from ``VOTING_PREFERENCE_INTERVIEW_WO_VOTING_RESULTS_REGEX_PATTERNS``
+        so the two cannot drift apart.
     """
     patterns = []
     for pattern in VOTING_PREFERENCE_INTERVIEW_WO_VOTING_RESULTS_REGEX_PATTERNS:
@@ -81,6 +87,11 @@ def _arm_d_patterns() -> list:
     triggered. Fixed by anchoring the pattern to end right after the label
     (only optional whitespace before the literal "- response"), so it can
     no longer match a longer label that happens to start with this one.
+
+    Returns:
+        list: One anchored regex per label in
+        ``prompt_template_arm_d.ARM_D_QUESTION_LABELS``, each matching exactly
+        ``"<LABEL> - response"``.
     """
     patterns = []
     for label in arm_d_prompts.ARM_D_QUESTION_LABELS:

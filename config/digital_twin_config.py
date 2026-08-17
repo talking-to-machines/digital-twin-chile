@@ -1,3 +1,4 @@
+import hashlib
 import os
 from dotenv import load_dotenv
 
@@ -53,7 +54,23 @@ POST_VOTING_PREFERENCE_WITH_VOTING_RESULTS_INTERVIEW_FILE = f"post_voting_prefer
 
 
 def build_variant_suffix(include_profile_info: bool, enable_web_search: bool) -> str:
-    """Return the profile-info / web-search variant suffix used in output paths."""
+    """Build the information-condition suffix used in output paths.
+
+    The two booleans form the 2x2 of information conditions (the
+    pre-registration's Arms 1-4), which is orthogonal to the prompt
+    architecture chosen by ``--treatment-arm``.
+
+    Args:
+        include_profile_info (bool): Whether the participant's profile fields
+            and posts are included in the prompts.
+        enable_web_search (bool): Whether the web-search tool is attached.
+
+    Returns:
+        str: One of ``with_profile_info_with_web_search``,
+        ``without_profile_info_with_web_search``,
+        ``with_profile_info_without_web_search`` or
+        ``without_profile_info_without_web_search``.
+    """
     if enable_web_search and include_profile_info:
         return "with_profile_info_with_web_search"
     elif enable_web_search and not include_profile_info:
@@ -64,15 +81,73 @@ def build_variant_suffix(include_profile_info: bool, enable_web_search: bool) ->
         return "without_profile_info_without_web_search"
 
 
+def build_sample_tag(seed: int, account_ids: "list[str]") -> str:
+    """Identify a user subsample by size, seed and a hash of its members.
+
+    Hashing the *resulting sample* rather than the inputs means the tag subsumes
+    the roster file, the seed and the requested size at once, and gives the
+    guarantee ``same tag <=> same user set``. Swapping the roster underneath a
+    fixed seed therefore produces a visibly different output directory instead
+    of silently colliding with the previous one.
+
+    Args:
+        seed (int): The seed that produced this sample, recorded in the tag so
+            the directory name states how to reproduce it.
+        account_ids (list[str]): The sampled account ids. Order-invariant --
+            the caller passes them sorted so the digest is canonical.
+
+    Returns:
+        str: A tag of the form ``n<size>_seed<seed>_<6-char sha256 prefix>``,
+        e.g. ``n50_seed20251213_1f3a9c``.
+    """
+    digest = hashlib.sha256("\n".join(account_ids).encode("utf-8")).hexdigest()
+    return f"n{len(account_ids)}_seed{seed}_{digest[:6]}"
+
+
 def build_execution_date(
-    include_profile_info: bool, enable_web_search: bool, treatment_arm: str
+    include_profile_info: bool,
+    enable_web_search: bool,
+    treatment_arm: str,
+    *,
+    sample_tag: str = "",
+    run_index: "int | None" = None,
 ) -> str:
     """Namespace each run by variant and treatment arm so outputs never clobber.
 
-    e.g. ``pilot_with_profile_info_with_web_search_arm_a``.
+    The returned string is used two ways at once: as the output *directory*
+    name under ``data/<project>/`` and as a *suffix* on every artifact inside
+    it. Extending it here is therefore what keeps repeated runs from
+    overwriting each other, including the otherwise fixed
+    ``batch-files/batch_input.jsonl`` and ``randomization_logs/`` names.
+
+    Args:
+        include_profile_info (bool): Whether profile fields and posts are in
+            the prompts.
+        enable_web_search (bool): Whether the web-search tool is attached.
+        treatment_arm (str): Prompt architecture key, e.g. ``"a"`` or ``"c"``.
+        sample_tag (str): Optional subsample identifier from
+            :func:`build_sample_tag`. Empty (default) omits the segment.
+        run_index (int | None): Optional repetition index, rendered as
+            ``_runNN``. ``None`` (default) omits the segment.
+
+    Returns:
+        str: e.g. ``pilot_with_profile_info_with_web_search_arm_a`` for a plain
+        run, or
+        ``pilot_with_profile_info_with_web_search_arm_c_n50_seed20251213_1f3a9c_run03``
+        for run 3 of a seeded 50-respondent study.
+
+    Note:
+        ``sample_tag`` and ``run_index`` are keyword-only and default to the
+        legacy behaviour, so existing three-positional-argument callers (such
+        as ``scripts/export_appendix_b.py``) produce byte-identical output.
     """
     variant = build_variant_suffix(include_profile_info, enable_web_search)
-    return f"pilot_{variant}_arm_{treatment_arm}"
+    name = f"pilot_{variant}_arm_{treatment_arm}"
+    if sample_tag:
+        name += f"_{sample_tag}"
+    if run_index is not None:
+        name += f"_run{run_index:02d}"
+    return name
 
 
 ENTITY_GEOGRAPHIC_INTERVIEW_REGEX_PATTERNS = [

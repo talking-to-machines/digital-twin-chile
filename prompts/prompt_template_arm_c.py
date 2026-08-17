@@ -144,7 +144,17 @@ NOTA: Las opciones de varias preguntas se presentan a continuación en orden ale
 
 
 def _is_ci_option(option: str) -> bool:
-    """The CANNOT_INFER escape line of an option list."""
+    """Test whether an option line is the CANNOT_INFER escape.
+
+    Used to keep the CI escape pinned last when an ordinal scale is reversed,
+    so reversal changes the scale direction without displacing the escape.
+
+    Args:
+        option (str): A rendered option line, e.g. ``"AG3) De 25 a 34 años"``.
+
+    Returns:
+        bool: True if the line is the ``CI)`` CANNOT_INFER escape.
+    """
     return option.startswith("CI)")
 
 

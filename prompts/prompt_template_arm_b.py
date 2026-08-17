@@ -525,11 +525,25 @@ _OPT_LINE_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*_?\d+\)")
 
 
 def _extract_arm_a_block(source: str, title: str) -> "list[str]":
-    """
-    Return the lines of Arm A's block for `title`, title prefix stripped.
-    Handles both of A's layouts: title alone on its line (voting prompt) and
-    title + sentence on one line (geographic prompt, e.g.
-    "PERSONA REAL: ¿Esta cuenta corresponde a ...?").
+    """Extract one question block from an Arm A prompt, title prefix stripped.
+
+    Handles both of Arm A's layouts: the title alone on its line (voting
+    prompt) and the title plus survey sentence on one line (geographic prompt,
+    e.g. ``"PERSONA REAL: ¿Esta cuenta corresponde a ...?"``).
+
+    Args:
+        source (str): The full Arm A prompt text to search.
+        title (str): Verbatim question title to locate, without the trailing
+            colon, e.g. ``"PERSONA REAL"``.
+
+    Returns:
+        list[str]: The block's lines -- any survey sentence first, then the
+        option lines -- with the title prefix removed.
+
+    Raises:
+        ValueError: If ``title`` does not appear in ``source`` (raised by the
+            underlying ``str.index``), which is the intended loud failure when
+            Arm A's wording changes and Arm B has not been updated to match.
     """
     anchor = "\n" + title + ":"
     start = source.index(anchor) + 1  # start of the title line
@@ -585,12 +599,28 @@ _QUESTION_BLOCKS_TEXT = "\n\n".join(_question_blocks)
 
 
 def fill_stage2_user_prompt(options_by_key: "dict[str, str]", ordering_note: str = "") -> str:
-    """
-    Fill the shared Stage 2 user-prompt template. `options_by_key` maps each
-    opt_key (incl. COMUNA) to its rendered option block. Uses literal
-    replacement, never str.format, so JSON braces in the template are safe.
-    Leaves {stage_1_output_json} for the caller (driver replaces it for Arm B;
-    Arm C's builder replaces it directly).
+    """Fill the shared Stage 2 user-prompt template with rendered option lists.
+
+    Uses literal string replacement rather than ``str.format``, because the
+    template embeds the Stage 2 JSON schema and its single braces would
+    otherwise be interpreted as format fields.
+
+    Args:
+        options_by_key (dict[str, str]): Maps each option key (including
+            ``"COMUNA"``) to its rendered option block. Arm B passes canonical
+            order; Arm C passes per-subject shuffled order.
+        ordering_note (str): Text for the ``{ordering_note}`` slot. Arm B
+            passes ``""``; Arm C passes its randomised-order NOTA.
+
+    Returns:
+        str: The Stage 2 user prompt with every ``{options_*}`` slot filled.
+        ``{stage_1_output_json}`` is deliberately left unfilled for the caller
+        -- the driver substitutes it for Arm B, Arm C's builder does so
+        directly.
+
+    Raises:
+        AssertionError: If any ``{options_*}`` placeholder is left unfilled,
+            which would otherwise ship a literal placeholder to the model.
     """
     out = _arm_b_stage2_user_prompt_template.replace(
         "{question_blocks}", _QUESTION_BLOCKS_TEXT
