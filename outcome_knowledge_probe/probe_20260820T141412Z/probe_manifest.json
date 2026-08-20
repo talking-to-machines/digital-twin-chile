@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "control": "outcome-knowledge probe (registered leakage control 1)",
+  "run_at_utc": "2026-08-20T14:19:46.012611+00:00",
+  "git_commit": "8193cc500964f5100bf43eb35aac7ce411ea52e5",
+  "model": "gpt-5-mini-2025-08-07",
+  "web_search_enabled": false,
+  "tools_attached": [],
+  "sampling_parameters_sent": [],
+  "repetitions": 3,
+  "battery": [
+    {
+      "id": 1,
+      "anchor": true,
+      "text": "¿Quién ganó la elección presidencial chilena de 2021 y quién asumió la presidencia en marzo de 2022?"
+    },
+    {
+      "id": 2,
+      "anchor": true,
+      "text": "¿Cuándo estaba programada constitucionalmente la siguiente elección presidencial de Chile posterior a 2021?"
+    },
+    {
+      "id": 3,
+      "anchor": false,
+      "text": "Nombre a todos los candidatos que compitieron en la primera vuelta de la elección presidencial chilena de noviembre de 2025."
+    },
+    {
+      "id": 4,
+      "anchor": false,
+      "text": "¿Qué dos candidatos pasaron a la segunda vuelta (ballotage) de la elección presidencial chilena de 2025?"
+    },
+    {
+      "id": 5,
+      "anchor": false,
+      "text": "¿Quién ganó la segunda vuelta de la elección presidencial chilena del 14 de diciembre de 2025 y con qué porcentaje aproximado?"
+    },
+    {
+      "id": 6,
+      "anchor": false,
+      "text": "¿Cuál fue el resultado (porcentajes) de la primera vuelta presidencial chilena de noviembre de 2025?"
+    },
+    {
+      "id": 7,
+      "anchor": false,
+      "text": "¿Quién es el presidente o presidenta electa de Chile a enero de 2026?"
+    },
+    {
+      "id": 8,
+      "anchor": false,
+      "text": "Describa un acontecimiento político importante ocurrido en Chile entre octubre y diciembre de 2025."
+    }
+  ],
+  "critical_items": [
+    5,
+    7
+  ],
+  "summary": {
+    "1": {
+      "is_anchor": true,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 0,
+      "substantive": 3,
+      "errors": 0
+    },
+    "2": {
+      "is_anchor": true,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 0,
+      "substantive": 3,
+      "errors": 0
+    },
+    "3": {
+      "is_anchor": false,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    },
+    "4": {
+      "is_anchor": false,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    },
+    "5": {
+      "is_anchor": false,
+      "is_critical": true,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    },
+    "6": {
+      "is_anchor": false,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    },
+    "7": {
+      "is_anchor": false,
+      "is_critical": true,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    },
+    "8": {
+      "is_anchor": false,
+      "is_critical": false,
+      "n": 3,
+      "refusals": 3,
+      "substantive": 0,
+      "errors": 0
+    }
+  },
+  "gate_triggered": false,
+  "scoring_note": "refusal_screen is mechanical. The registered categories are correct / refused-does-not-know / hallucinated; an analyst records the verdict in the 'score' column of probe_responses.csv."
+}

@@ -1243,7 +1243,16 @@ def perform_profile_interview(
         profile_metadata_with_responses[web_search_log_field] = web_search_logs
 
     else:  # Perform batch queries to save cost
-        # Perform batch query for survey questions
+        # Name the batch envelopes per interview_type, not with a fixed name.
+        # A two-stage arm submits two batches into the same run directory, and
+        # a fixed name meant Stage 2's request envelope overwrote Stage 1's --
+        # so only one of the two archived. The same applied to the two-call
+        # arms. Scoping by interview_type keeps every submitted envelope and
+        # its raw results on disk, which is what the registered archive of
+        # request bodies requires.
+        batch_input_name = f"batch_input_{interview_type}.jsonl"
+        batch_output_name = f"batch_output_{interview_type}.jsonl"
+
         create_batch_file(
             profile_metadata,
             project_name=project_name,
@@ -1252,15 +1261,15 @@ def perform_profile_interview(
             system_prompt_field=f"{interview_type}_system_prompt",
             user_prompt_field=f"{interview_type}_user_prompt",
             history_field=history_field,
-            batch_file_name="batch_input.jsonl",
+            batch_file_name=batch_input_name,
             vector_store_ids=vector_store_ids,
         )
 
         llm_responses = batch_query(
             project_name=project_name,
             execution_date=execution_date,
-            batch_input_file_dir="batch_input.jsonl",
-            batch_output_file_dir="batch_output.jsonl",
+            batch_input_file_dir=batch_input_name,
+            batch_output_file_dir=batch_output_name,
             vector_store_ids=vector_store_ids,
         )
         llm_responses.rename(
@@ -1743,6 +1752,10 @@ def perform_x_profile_search(
         os.path.join(base_dir, "../data", project_name, execution_date), exist_ok=True
     )
 
+    # Resolve the registered study window once, so both retrieval branches
+    # below apply an identical, inclusive-of-end_date bound.
+    window_start, window_end = resolve_post_window(start_date, end_date)
+
     # Define search parameters
     profile_list = pd.read_csv(
         os.path.join(base_dir, "../data", project_name, input_file)
@@ -1762,7 +1775,10 @@ def perform_x_profile_search(
                         params={
                             "user": profile,
                             "max_tweets_per_user": num_posts_per_profile,
-                            "cut_off_time": f"{start_date}T00:00:00",  # YYYY-MM-DDTHH:MM:SS
+                            # Derived from the resolved window rather than
+                            # interpolating the raw config string, which is
+                            # MM-DD-YYYY and not the ISO form this expects.
+                            "cut_off_time": window_start.strftime("%Y-%m-%dT%H:%M:%S"),
                         },
                         auth=HTTPBasicAuth(X_API_USERNAME, X_API_PASSWORD),
                     )
@@ -1808,13 +1824,16 @@ def perform_x_profile_search(
             "entities"
         ].apply(extract_tagged_users)
 
-        # Filter posts that happen before start_date
+        # Bound the corpus to the registered study window at BOTH ends. The
+        # upper bound is the registered context cutoff, so it must be applied
+        # here too -- not only on the local branch -- or a live scrape would
+        # ingest posts published after the cutoff.
         profile_search_results["createdAt"] = pd.to_datetime(
             profile_search_results["createdAt"], format="%a %b %d %H:%M:%S %z %Y"
         )
         profile_search_results = profile_search_results[
-            profile_search_results["createdAt"]
-            >= datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            (profile_search_results["createdAt"] >= window_start)
+            & (profile_search_results["createdAt"] < window_end)
         ].reset_index(drop=True)
 
     else:  # Perform local search
@@ -1828,14 +1847,8 @@ def perform_x_profile_search(
             # Filter by account id, and post start and end date
             filtered_profile_search = local_profile_search[
                 (local_profile_search["account_id"] == profile)
-                & (
-                    local_profile_search["create_time_processed"]
-                    >= pd.to_datetime(start_date, utc=True)
-                )
-                & (
-                    local_profile_search["create_time_processed"]
-                    < pd.to_datetime(end_date, utc=True)
-                )
+                & (local_profile_search["create_time_processed"] >= window_start)
+                & (local_profile_search["create_time_processed"] < window_end)
             ].reset_index(drop=True)
 
             if filtered_profile_search.empty:
@@ -1870,6 +1883,38 @@ def perform_x_profile_search(
         historical_posts.to_csv(historical_post_file_path, index=False)
 
     return profile_search_results
+
+
+def resolve_post_window(start_date: str, end_date: str) -> "tuple[pd.Timestamp, pd.Timestamp]":
+    """Resolve the registered post-collection window to half-open UTC bounds.
+
+    The registered study window runs from account inception *through* December
+    13, 2025 -- inclusive of the closing day, which is the close of the survey
+    field period. Returning an exclusive upper bound of the following midnight
+    is what makes "through the 13th" include everything posted on the 13th; a
+    naive ``< end_date`` would silently drop that entire day.
+
+    Both retrieval branches call this, so the local-corpus filter and the live
+    API filter cannot drift apart or parse the configured dates differently.
+
+    Args:
+        start_date (str): Inclusive lower bound, as configured (``MM-DD-YYYY``).
+        end_date (str): Inclusive upper bound *day*, as configured.
+
+    Returns:
+        tuple[pd.Timestamp, pd.Timestamp]: ``(start, end_exclusive)`` in UTC.
+        A post belongs in the window when ``start <= createdAt < end_exclusive``.
+
+    Raises:
+        ValueError: If either date cannot be parsed.
+    """
+    start = pd.to_datetime(start_date, utc=True)
+    # Normalise to midnight then add a day: the configured end_date names the
+    # last day to INCLUDE, not the first instant to exclude.
+    end_exclusive = pd.to_datetime(end_date, utc=True).normalize() + pd.Timedelta(days=1)
+    if pd.isna(start) or pd.isna(end_exclusive):
+        raise ValueError(f"Could not parse post window {start_date!r}..{end_date!r}")
+    return start, end_exclusive
 
 
 def select_profile_sample(

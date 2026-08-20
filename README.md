@@ -265,4 +265,37 @@ parse yet, with the payload preserved under `raw`.
 These CSVs already exceed Excel's 32,767-character cell limit; analyse them in
 pandas or R.
 
+### 4.10 Outcome-knowledge probe (run before production)
+
+Registered leakage control 1: behavioural verification that the pinned model
+cannot answer questions about the 2025 Chilean election from parametric
+knowledge. Must be run before any production interview.
+
+```bash
+python -m scripts.outcome_knowledge_probe --dry-run   # show the battery, no API calls
+python -m scripts.outcome_knowledge_probe             # 8 items x 3 reps = 24 calls
+```
+
+The battery is fixed by the 17 August 2026 selection memo §4 and is asked
+verbatim in Spanish — items 1–2 are in-cutoff anchors the model *should*
+answer, items 3–8 concern post-cutoff events it should not. Web search is
+disabled (no tools attached) and no sampling parameters are sent.
+
+Each run archives `probe_manifest.json`, `probe_responses.json` and
+`probe_responses.csv` under `outcome_knowledge_probe/probe_<timestamp>/` —
+deliberately outside `data/`, which is gitignored, so the archive can ship with
+the registration materials.
+
+**Scoring is left to a human.** The script classifies each response as a
+refusal or a substantive answer, which is mechanically decidable; whether a
+substantive answer is *correct* or *hallucinated* depends on the real-world
+outcome, and an analyst records that verdict in the `score` column of the CSV.
+A confidently wrong answer is the expected failure mode under the training
+cutoff and does **not** block the run.
+
+The script exits `2` and prints a prominent warning if either critical item
+(5 — who won the ballotage; 7 — who is president-elect) draws a substantive
+answer, since the registration requires reassessment before production in that
+case. Exit `0` means every critical item was refused.
+
 ---

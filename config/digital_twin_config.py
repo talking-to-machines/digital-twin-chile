@@ -23,7 +23,12 @@ else:
     PIPELINE_EXECUTION_DATE += "without_profile_info_without_web_search"
 
 PROFILE_SEARCH_START_DATE = "01-01-2000"  # MM-DD-YYYY format
-PROFILE_SEARCH_END_DATE = "12-31-2025"  # MM-DD-YYYY format
+# Registered context cutoff (leakage control 3 / Study Window): the post corpus
+# runs from account inception THROUGH December 13, 2025, the close of the survey
+# field period. The date names the last day to include -- resolve_post_window()
+# in src/utils.py converts it to an exclusive bound at the following midnight,
+# so posts made during December 13 are kept and nothing later is.
+PROFILE_SEARCH_END_DATE = "12-13-2025"  # MM-DD-YYYY format, inclusive
 
 # Reference-date instruction (Ray, Slack #digital-twins, 2026-08-08): one
 # identical passage in the context block of every architecture (A-D) and every
